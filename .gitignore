@@ -1,0 +1,59 @@
+# ===== 运行时数据(可重建,不进 git)=====
+# 收藏夹(本地缓存,丢了不影响功能)
+favorites.json
+# 调试中间产物
+_ai_req.json
+_ai_video_req.json
+*.tmp
+# 临时调试脚本(手动 inspect / dump 用)
+_inspect.py
+_dump.py
+
+# ===== 日志(daemon/server 输出,本地诊断用)=====
+server.out
+server.err
+daemon.out
+daemon.err
+*.log
+logs/
+
+# ===== 缩略图缓存(PIL 运行时生成)=====
+thumbs/
+__thumbs__/
+.cache/
+
+# ===== 数据库(SQLite 文件 + 备份)=====
+# 2026-07-24 v1.0.0 AnalysisWeb:AnalysisDb.db 是本项目私有,走 scripts/build_db.py 重建,不进 git
+_AnalysisDb/AnalysisDb.db
+AnalysisDb.db
+PictureDb.db
+*.db-journal
+*.db-wal
+*.db-shm
+# 备份
+*.bak
+*.db.bak
+
+# ===== Python 缓存 =====
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ===== 编辑器 / 系统垃圾 =====
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+$RECYCLE.BIN/
+
+# ===== 项目特定(2026-07-24 v1.0.0 AnalysisWeb 初始):被替换的临时调试脚本(已删)=====
+# (无,留空)
+
