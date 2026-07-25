@@ -17,7 +17,7 @@ PictureWeb 收效果图 / 参考图,AnalysisWeb 专门收**方案分析图**(轴
 | 项 | 值 |
 |---|---|
 | 工作目录 | `D:\Mac\Mac\Mac\workteam\05_space\03_architect\Attack\03-Analysis\_ArchiAttackAnalysisLib\AnalysisWeb\` |
-| 远端仓库 | `https://github.com/1500385678/AnalysisWeb` (public, 2026-07-24 v1.0.0) |
+| 远端仓库 | **GitHub** `https://github.com/1500385678/AnalysisWeb` (public, 2026-07-24 v1.0.0) · **Gitee 镜像** `https://gitee.com/architectzy/AnalysisWeb` (public, 2026-07-25 v1.0.0,互不依赖) |
 | 远端主分支 | `main` |
 | 当前版本 | `v1.0.0` (`__version__.py`) |
 | 启动命令 | `python -X utf8 server.py` (Windows) 或双击 `start.bat` |
@@ -88,9 +88,10 @@ AnalysisWeb/
 
 ## 5. 推送规范
 
-`git push` 在本机走 TCP 443 不通(被网络拦截),但 `https://api.github.com` 走得通。
+`git push` 在本机走 TCP 443 不通(被网络拦截),但 `https://api.github.com` 和 `https://gitee.com/api/v5` 都走得通。
 **标准推送方式**:
-- 走 `scripts/git_data_push.py` (项目自带,内部用 Git Data API)
+- GitHub:走 `scripts/git_data_push.py` (项目自带,内部用 Git Data API) 或 `scripts/_push_v100.py`
+- Gitee:走 `scripts/_push_gitee_v100.py` (Contents API,空仓不能改 public 需先推 1 个文件)
 - fallback:直接 `Invoke-RestMethod` + Bearer header 调 GitHub API
 
 **绝不要用**: `gh CLI` (`gh auth login` 对本项目 token 必返 401) / PowerShell `Set-Content` 写 .py (GBK 污染中文)。
@@ -112,6 +113,7 @@ $h = @{Authorization="Bearer $env:GH_TOKEN"}
 - **Secret scanning 拦硬编码 `ghp_...`**:改占位符 `__GITHUB_TOKEN_PLACEHOLDER__`,真实 token 走 env 注入
 - **README CRLF vs LF**:Contents API 走 ReadAllBytes 会上传 CRLF bytes,跟 git object LF bytes SHA 不同
 - **改 env 名容易漏**:`PICTUREWEB_HOME` → `ANALYSISWEB_HOME`、`PICTUREWEB_TEST_PORT` → `ANALYSISWEB_TEST_PORT`,全局搜一遍(server.py / start.bat / start.sh / start_hidden.vbs / scripts/)
+- **Gitee POST /user/repos 不接 `public` 字段**(`true` / `false` / `1` / `0` 全报 `public is invalid`):建仓不传 public;Gitee 还规定**空仓不能改 public**(报 "空仓库不支持设置为公开仓库")→ 必须先 POST 1 个文件,再 PATCH `/repos/{owner}/{repo}`(必带 `name` 字段,否则 "name is missing")改 `private=false`
 
 ## 8. 沟通规范
 
