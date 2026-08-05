@@ -65,7 +65,7 @@ python -X utf8 server.py
 
 ```
 AnalysisWeb/
-├── server.py            # 后端(单文件,约 580 行)
+├── server.py            # 后端(单文件,722 行 · 2026-08-06 9 维承诺+端口冲突修后)
 ├── index.html           # 搜索主页(CSS+JS 内嵌,苹果风浅色)
 ├── start.bat            # Windows 启动
 ├── start.sh             # macOS/Linux 启动
@@ -100,6 +100,7 @@ AnalysisWeb/
 | 日期 | 变更 | 触发 |
 |------|------|------|
 | 2026-07-24 | **v1.0.0** 初始独立版本 · README/AGENTS 改 AnalysisWeb 专属 · 端口 8081→8082 · env 重命名 PICTUREWEB_*→ANALYSISWEB_* · Style/ 11 张分析图 LLM 打标入库 · 仓库 1500385678/AnalysisWeb 公开 | 从 PictureWeb 拆出,作为方案分析图专用图库 |
+| 2026-08-06 | **夜间迭代批 3** P0 端口冲突退出码 1 + 启动 LAN IP 自动探测 + 9 维承诺兑现(6 维搜索 + 6 维 facets + 缺列自动 ALTER) + embedding 软化为 env 变量 + AGENTS/README 行数 / 目录结构同步 | Verifier 6 条意见(P0=2 / P1=3 / P2=1) |
 
 ## 验收日志
 

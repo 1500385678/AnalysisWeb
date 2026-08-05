@@ -161,8 +161,9 @@ def push_files():
                 set_public()
                 print()
             continue
-        # 已存在 → 拿 sha 后 PUT
-        if s == 422 and ('已存在' in str(d.get('message', '')) or 'exist' in str(d.get('message', '')).lower()):
+        # 已存在 → 拿 sha 后 PUT(Gitee 报错码 400/422 都有可能,看 message)
+        msg = str(d.get('message', ''))
+        if (s in (400, 422)) and ('已存在' in msg or 'exist' in msg.lower() or '已存在' in str(d.get('error', {}).get('base', ''))):
             s2, d2 = request(f'/repos/{OWNER}/{REPO}/contents/{encoded_path}', query={'ref': BRANCH})
             if s2 == 200:
                 old_sha = d2.get('sha')

@@ -123,10 +123,19 @@ class Handler(SimpleHTTPRequestHandler):
             arch = (qs.get('arch', [''])[0] or '').strip()
             company = (qs.get('company', [''])[0] or '').strip()
             view_type = (qs.get('view', [''])[0] or '').strip()
+            # 2026-08-06 P1:6 个新维度查询参数
+            analysis_type = (qs.get('analysis_type', [''])[0] or '').strip()
+            drawing_method = (qs.get('drawing_method', [''])[0] or '').strip()
+            subject = (qs.get('subject', [''])[0] or '').strip()
+            scale = (qs.get('scale', [''])[0] or '').strip()
+            render_style = (qs.get('render_style', [''])[0] or '').strip()
+            color_palette = (qs.get('color_palette', [''])[0] or '').strip()
             favs_only = qs.get('favs_only', ['0'])[0] == '1'
             limit = int(qs.get('limit', ['60'])[0])
             try:
-                items = self._search(q, keywords, project, scene, light, mood, arch, company, view_type, favs_only, limit)
+                items = self._search(q, keywords, project, scene, light, mood, arch, company, view_type,
+                                      analysis_type, drawing_method, subject, scale, render_style, color_palette,
+                                      favs_only, limit)
                 # 转换 path -> url
                 for it in items:
                     it['url'] = to_img_url(it['path'])
@@ -198,7 +207,9 @@ class Handler(SimpleHTTPRequestHandler):
         # 静默日志（写文件用 logging）
         pass
 
-    def _search(self, q, keywords, project, scene, light, mood, arch, company, view_type, favs_only, limit):
+    def _search(self, q, keywords, project, scene, light, mood, arch, company, view_type,
+                analysis_type, drawing_method, subject, scale, render_style, color_palette,
+                favs_only, limit):
         import re as _re
         def tokenize(t):
             if not t: return ''
@@ -222,13 +233,16 @@ class Handler(SimpleHTTPRequestHandler):
         if keywords:
             use_fts = True
             fts_terms.append(' AND '.join([tokenize(k) for k in keywords]))
+        # 2026-08-06 P1 修复:9 维承诺不再空头。SELECT 拉满 9 维 + 6 维参数过滤
+        select_cols = ('id, project, filename, abs_path, scene, light, space, material, mood, caption, phash, '
+                       'arch_type, render_company, view_type, '
+                       'analysis_type, drawing_method, subject, scale, render_style, color_palette')
         if use_fts:
-            fts_q = ' AND '.join(['(' + t + ')' for t in fts_terms])
-            sql = (f"SELECT DISTINCT i.id AS id, i.project, i.filename, i.abs_path, i.scene, i.light, i.space, i.material, i.mood, i.caption, i.phash, i.arch_type, i.render_company, i.view_type "
+            sql = (f"SELECT DISTINCT i.{select_cols.replace(',', ', i.')} "
                    f"FROM images_fts f JOIN images i ON i.id = f.id WHERE images_fts MATCH '{fts_q}'")
             params = []
         else:
-            sql = "SELECT id, project, filename, abs_path, scene, light, space, material, mood, caption, phash, arch_type, render_company, view_type FROM images WHERE 1=1"
+            sql = f"SELECT {select_cols} FROM images WHERE 1=1"
             params = []
         if project:
             sql += " AND i.project = ?" if use_fts else " AND project = ?"
@@ -251,6 +265,25 @@ class Handler(SimpleHTTPRequestHandler):
         if view_type:
             sql += " AND i.view_type = ?" if use_fts else " AND view_type = ?"
             params.append(view_type)
+        # 2026-08-06 P1:6 个新维度参数
+        if analysis_type:
+            sql += " AND i.analysis_type = ?" if use_fts else " AND analysis_type = ?"
+            params.append(analysis_type)
+        if drawing_method:
+            sql += " AND i.drawing_method = ?" if use_fts else " AND drawing_method = ?"
+            params.append(drawing_method)
+        if subject:
+            sql += " AND i.subject = ?" if use_fts else " AND subject = ?"
+            params.append(subject)
+        if scale:
+            sql += " AND i.scale = ?" if use_fts else " AND scale = ?"
+            params.append(scale)
+        if render_style:
+            sql += " AND i.render_style = ?" if use_fts else " AND render_style = ?"
+            params.append(render_style)
+        if color_palette:
+            sql += " AND i.color_palette = ?" if use_fts else " AND color_palette = ?"
+            params.append(color_palette)
         if favs_only:
             favs = load_favs()
             if not favs:
@@ -270,6 +303,13 @@ class Handler(SimpleHTTPRequestHandler):
                 'phash': r['phash'] or '',
                 'arch_type': r['arch_type'] or '', 'render_company': r['render_company'] or '',
                 'view_type': (r['view_type'] if 'view_type' in r.keys() else '') or '',
+                # 2026-08-06 P1:6 个新维度回显
+                'analysis_type': (r['analysis_type'] if 'analysis_type' in r.keys() else '') or '',
+                'drawing_method': (r['drawing_method'] if 'drawing_method' in r.keys() else '') or '',
+                'subject': (r['subject'] if 'subject' in r.keys() else '') or '',
+                'scale': (r['scale'] if 'scale' in r.keys() else '') or '',
+                'render_style': (r['render_style'] if 'render_style' in r.keys() else '') or '',
+                'color_palette': (r['color_palette'] if 'color_palette' in r.keys() else '') or '',
             })
         conn.close()
         return out
@@ -283,18 +323,57 @@ class Handler(SimpleHTTPRequestHandler):
         moods = sorted(set([m for r in conn.execute("SELECT mood FROM images WHERE mood IS NOT NULL AND mood != ''").fetchall() for m in (r[0] or '').split(';') if m.strip()]))
         archs = sorted(set([a for a, in conn.execute("SELECT DISTINCT arch_type FROM images WHERE arch_type IS NOT NULL AND arch_type != ''").fetchall()]))
         companies = sorted(set([c for c, in conn.execute("SELECT DISTINCT render_company FROM images WHERE render_company IS NOT NULL AND render_company != ''").fetchall()]))
+        # 2026-08-06 P1 修复:9 维承诺不再空头。6 维 DISTINCT 全给前端 chips
+        def _distinct(col, split=False):
+            sql = f"SELECT {col} FROM images WHERE {col} IS NOT NULL AND {col} != ''"
+            rows = conn.execute(sql).fetchall()
+            if not split:
+                return sorted({r[0] for r in rows if r[0]})
+            out = set()
+            for r in rows:
+                for v in (r[0] or '').split(';'):
+                    if v.strip():
+                        out.add(v.strip())
+            return sorted(out)
+        analysis_types = _distinct('analysis_type')
+        drawing_methods = _distinct('drawing_method')
+        subjects = _distinct('subject')
+        scales = _distinct('scale')
+        render_styles = _distinct('render_style')
+        color_palettes = _distinct('color_palette')
         conn.close()
-        return {'projects': projects, 'scenes': scenes, 'lights': lights, 'moods': moods, 'archs': archs, 'companies': companies,
-                'view_types': ['bird-eye', 'eye-level', 'other']}
+        return {
+            'projects': projects, 'scenes': scenes, 'lights': lights, 'moods': moods,
+            'archs': archs, 'companies': companies,
+            'view_types': ['bird-eye', 'eye-level', 'other'],
+            # 2026-08-06 P1:6 个新维度 facets(空列也会返 [],前端空 chip 也无副作用)
+            'analysis_types': analysis_types,
+            'drawing_methods': drawing_methods,
+            'subjects': subjects,
+            'scales': scales,
+            'render_styles': render_styles,
+            'color_palettes': color_palettes,
+        }
 
     def _semantic_search(self, text):
         if not text:
             self._json({'error': 'q 不能为空', 'items': []})
             return
+        # 2026-08-06 P1 修复:不再硬把父目录塞 sys.path(那强制 AnalysisWeb 必须
+        # 部署在 _ArchiAttackAnalysisLib/ 下,违反 v1.0.0 独立运营 + GitHub 公开仓库承诺)
+        # 改为读 ANALYSISWEB_EMBEDDING_DIR 环境变量,缺则返 501 友好错误
+        embedding_dir = os.environ.get('ANALYSISWEB_EMBEDDING_DIR')
+        if embedding_dir and os.path.isdir(embedding_dir):
+            sys.path.insert(0, embedding_dir)
         try:
-            import sys
-            sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-            import embedding
+            import embedding  # noqa: E402
+        except ImportError as e:
+            self._json({
+                'error': f'AI 语义搜索未配置:{e}。请设 ANALYSISWEB_EMBEDDING_DIR 环境变量指向含 embedding.py 的目录,或在父目录 _ArchiAttackAnalysisLib/ 下放 embedding.py',
+                'items': []
+            }, status=501)
+            return
+        try:
             results = embedding.search_by_text(text, 30)
             out = []
             for s, r in results:
@@ -567,18 +646,77 @@ class LimitedServer(ThreadingHTTPServer):
         super().process_request(request, client_address)
 
 
+def _ensure_db_schema():
+    """2026-08-06 P1:启动时确保 9 维标签列齐全。
+    DB 是 gitignore 的本地文件,可能来自老 build_db.py(只 26 列,缺
+    analysis_type / drawing_method / subject)。每次启动幂等检查,缺则 ALTER TABLE。
+    不丢老数据,新列默认 NULL,search 返空字符串。"""
+    if not os.path.exists(DB):
+        return
+    conn = sqlite3.connect(DB)
+    cur = conn.cursor()
+    existing = {row[1] for row in cur.execute('PRAGMA table_info(images)').fetchall()}
+    needed = {
+        'analysis_type': 'TEXT',
+        'drawing_method': 'TEXT',
+        'subject': 'TEXT',
+        'scale': 'TEXT',
+        'render_style': 'TEXT',
+        'color_palette': 'TEXT',
+        'view_type': 'TEXT',
+    }
+    added = []
+    for col, typ in needed.items():
+        if col not in existing:
+            try:
+                cur.execute(f'ALTER TABLE images ADD COLUMN {col} {typ}')
+                added.append(col)
+            except sqlite3.OperationalError as e:
+                print(f'[schema] 加列 {col} 失败: {e}', flush=True)
+    conn.commit()
+    conn.close()
+    if added:
+        print(f'[schema] 自动加列: {", ".join(added)} (老数据这些列会空,需重跑 build_db 重新打标)', flush=True)
+
+
+def _detect_lan_ip():
+    """自动探测本机 LAN IP(连 8.8.8.8:80 不发包,只读 socket 本端地址)
+    2026-08-06 P1 修复:启动横幅不再硬编码 192.168.181.136(那是 PictureWeb 时代
+    Windows LAN IP,现在 Mac mini 上的 LAN 网段不固定);探测失败时只打 loopback,
+    让用户自己 `ifconfig | grep inet` 查。"""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(('8.8.8.8', 80))
+        return s.getsockname()[0]
+    except OSError:
+        return None
+    finally:
+        s.close()
+
+
 if __name__ == '__main__':
     # 2026-07-24 v1.0.0 AnalysisWeb:默认端口 8082,dev 用 9082 设环境变量
+    import socket  # _detect_lan_ip 用
+    _ensure_db_schema()  # 2026-08-06 P1:启动加 9 维列,缺则 ALTER
     port = int(os.environ.get('ANALYSISWEB_TEST_PORT', '8082'))
     host = '0.0.0.0'  # 监听所有接口
     os.chdir(os.path.dirname(__file__))
     print(f'AnalysisWeb 启动: http://127.0.0.1:{port}/', flush=True)
-    print(f'           局域网: http://192.168.181.136:{port}/  (需同网段)', flush=True)
+    lan_ip = _detect_lan_ip()
+    if lan_ip:
+        print(f'           局域网: http://{lan_ip}:{port}/  (需同网段)', flush=True)
+    else:
+        print(f'           (LAN IP 探测失败,同网段访问请用 `ifconfig | grep inet` 查看)', flush=True)
     print(f'DB: {DB}', flush=True)
     print(f'IMG_ROOT: {IMG_ROOT}', flush=True)
     print(f'并发上限: {MAX_CONCURRENT} 个连接', flush=True)
     try:
         LimitedServer((host, port), Handler).serve_forever()
     except OSError as e:
+        # 2026-08-06 P0 修复:端口占用必须 sys.exit(1) 而非 sleep 10 后隐式 return 0
+        # 之前 start.sh / launchctl / cron 都把端口冲突判为『成功』,夜间 cron 假阳性 green
         print(f'端口 {port} 占用: {e}', flush=True)
-        import time; time.sleep(10)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        print('\n已关闭', flush=True)
+        sys.exit(0)

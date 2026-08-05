@@ -56,7 +56,10 @@ CREATE TABLE images (
     render_company TEXT,
     view_type TEXT,
     color_palette TEXT,
-    scale TEXT
+    scale TEXT,
+    analysis_type TEXT,
+    drawing_method TEXT,
+    subject TEXT
 )
 ''')
 

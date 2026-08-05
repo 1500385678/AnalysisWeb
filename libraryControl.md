@@ -7,6 +7,11 @@ tags:
   - 建筑师助手
 created: 2026-06-27
 updated: 2026-06-27
+role: 排长
+上级: "[[Attack/03-Analysis/ArchiAttackAnalysisControl.md]]"  # 营长 · 03-Analysis 分析武器
+下属: []
+资源: []
+updated: 2026-08-02
 ---
 
 # 🎖️ 营长 · library

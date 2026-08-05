@@ -117,6 +117,39 @@ h1 {
   background: var(--accent-hover);
 }
 
+/* 2026-08-06 P1:9 维承诺不再空头 - 6 个新维度独立一行,跟 search-box 风格一致 */
+.dim-row {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  flex-wrap: wrap;
+  flex: 0 0 auto;
+  margin-top: 4px;
+  padding-left: 2px;
+}
+.dim-row select {
+  background: rgba(255,255,255,0.4);
+  border: 1px dashed var(--border);
+  color: var(--text);
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: inherit;
+  outline: none;
+  height: 22px;
+  cursor: pointer;
+}
+.dim-row select:focus,
+.dim-row select:hover {
+  border-color: var(--accent);
+  background: #fff;
+}
+.dim-row .dim-label {
+  font-size: 11px;
+  color: var(--text-soft);
+  margin-right: 4px;
+}
+
 .btn-secondary {
   background: rgba(0,0,0,0.05) !important;
   color: var(--text) !important;
@@ -755,7 +788,7 @@ h1 {
 </head>
 <body>
 <header>
-  <h1>PictureWeb</h1>
+  <h1>AnalysisWeb</h1>
   <div class="search-box">
     <input id="q" type="text" placeholder="搜索关键词，如：黄昏鸟瞰、住宅、教堂..." autofocus>
     <select id="project" data-label="项目"><option value=""></option></select>
@@ -768,6 +801,16 @@ h1 {
     <button onclick="search()">搜索</button>
     <button class="btn-secondary" onclick="openUpload()">上传搜图</button>
     <button class="btn-toggle" id="fav-toggle" onclick="toggleFavMode()">★ 收藏</button>
+  </div>
+  <!-- 2026-08-06 P1:9 维承诺第 2~7 维(分析类型/画法/主题/尺度/渲染/配色),独立行虚线 chip 风格 -->
+  <div class="dim-row">
+    <span class="dim-label">9 维:</span>
+    <select id="analysis_type" data-label="分析类型"><option value=""></option></select>
+    <select id="drawing_method" data-label="画法"><option value=""></option></select>
+    <select id="subject" data-label="主题"><option value=""></option></select>
+    <select id="scale" data-label="尺度"><option value=""></option></select>
+    <select id="render_style" data-label="渲染"><option value=""></option></select>
+    <select id="color_palette" data-label="配色"><option value=""></option></select>
   </div>
   <div class="keywords-box" id="kw-box">
     <span style="color:#888;font-size:12px">多关键词：</span>
@@ -830,6 +873,13 @@ async function init() {
   fillSelect('scene', facets.scenes);
   fillSelect('light', facets.lights);
   fillSelect('mood', facets.moods);
+  // 2026-08-06 P1:9 维承诺不再空头 - 6 个新维度 chips
+  fillSelect('analysis_type', facets.analysis_types || []);
+  fillSelect('drawing_method', facets.drawing_methods || []);
+  fillSelect('subject', facets.subjects || []);
+  fillSelect('scale', facets.scales || []);
+  fillSelect('render_style', facets.render_styles || []);
+  fillSelect('color_palette', facets.color_palettes || []);
   const fr = await fetch('/api/favorites');
   const fd = await fr.json();
   favs = fd.favorites;
@@ -1015,6 +1065,13 @@ async function search() {
   const arch = document.getElementById('arch').value;
   const company = document.getElementById('company').value;
   const view = document.getElementById('view').value;
+  // 2026-08-06 P1:6 个新维度查询参数
+  const analysis_type = document.getElementById('analysis_type').value;
+  const drawing_method = document.getElementById('drawing_method').value;
+  const subject = document.getElementById('subject').value;
+  const scale = document.getElementById('scale').value;
+  const render_style = document.getElementById('render_style').value;
+  const color_palette = document.getElementById('color_palette').value;
   const grid = document.getElementById('grid');
   const meta = document.getElementById('meta');
   grid.innerHTML = '<div class="loading">搜索中…</div>';
@@ -1037,6 +1094,13 @@ async function search() {
   if (arch) params.set('arch', arch);
   if (company) params.set('company', company);
   if (view) params.set('view', view);
+  // 2026-08-06 P1:6 个新维度传参
+  if (analysis_type) params.set('analysis_type', analysis_type);
+  if (drawing_method) params.set('drawing_method', drawing_method);
+  if (subject) params.set('subject', subject);
+  if (scale) params.set('scale', scale);
+  if (render_style) params.set('render_style', render_style);
+  if (color_palette) params.set('color_palette', color_palette);
   if (favOnlyMode) params.set('favs_only', '1');
   const r = await fetch('/api/search?' + params);
   const data = await r.json();

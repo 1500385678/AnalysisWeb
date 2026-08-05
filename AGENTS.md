@@ -27,19 +27,20 @@ PictureWeb 收效果图 / 参考图,AnalysisWeb 专门收**方案分析图**(轴
 | 缩略图缓存 | `thumbs/` (gitignore) |
 | 日志 | `logs/` (gitignore) |
 | 兄弟项目 | PictureWeb(8081) 收效果图 / 参考图,共用 `AnalysisWeb` 检索壳 |
-| 环境变量 | `ANALYSISWEB_HOME`(图片根父目录)、`ANALYSISWEB_TEST_PORT`(端口覆盖) |
+| 环境变量 | `ANALYSISWEB_HOME`(图片根父目录)、`ANALYSISWEB_TEST_PORT`(端口覆盖)、`ANALYSISWEB_EMBEDDING_DIR`(AI 语义搜 embedding.py 目录,缺则 501) |
 
 ## 2. 目录结构
 
 ```
 AnalysisWeb/
-├── server.py             # 后端(单文件,~580 行)
-├── index.html            # 搜索主页(CSS+JS 内嵌,苹果风浅色)
-├── start.bat / start.sh  # 启动脚本
+├── server.py             # 后端(单文件,722 行 · 2026-08-06 P0/P1 后)
+├── index.html            # 搜索主页(CSS+JS 内嵌,苹果风浅色,1218 行)
+├── start.bat / start.sh  # 启动脚本(均带 -X utf8 · 跨平台镜像)
 ├── start_hidden.vbs      # 无窗口启动(Windows)
 ├── libraryControl.md     # 旧 control 文件(归档)
 ├── LICENSE               # 许可证
 ├── favorites.json        # 收藏(运行时,gitignore)
+├── thumbs/               # 缩略图缓存(运行时,gitignore)
 ├── AGENTS.md             # 本文件
 ├── README.md             # 用户档
 ├── __version__.py        # 版本号源
@@ -49,8 +50,10 @@ AnalysisWeb/
 │   ├── 3agent-workflow.md  # 3-Agent 流水线手册(从 PictureWeb 继承,模板用)
 │   └── phase6-design.md    # Phase 6 设计(从 PictureWeb 继承)
 ├── scripts/
-│   ├── build_db.py          # 扫 IMG_ROOT → 建库
+│   ├── build_db.py          # 扫 IMG_ROOT → 建库(9 维标签列齐全)
 │   ├── git_data_push.py     # Git Data API 推送
+│   ├── _push_v100.py        # GitHub 推送(Contents API)
+│   ├── _push_gitee_v100.py  # Gitee 推送(Contents API)
 │   ├── auto_release.py      # release + bump + tag
 │   ├── auto_dispatch.py     # (从 PictureWeb 继承,模板用)
 │   ├── auto_fixer_architect.py # (从 PictureWeb 继承,模板用)
@@ -59,10 +62,11 @@ AnalysisWeb/
 │   ├── feedback.py          # (从 PictureWeb 继承,模板用)
 │   ├── batch_push.py        # (从 PictureWeb 继承,模板用)
 │   ├── debug_tree.py        # (从 PictureWeb 继承,模板用)
-│   └── _demo_e2e.py         # (从 PictureWeb 继承,模板用)
+│   ├── _demo_e2e.py         # (从 PictureWeb 继承,模板用)
+│   └── tag_images.py        # LLM 打标(后续可挂 cron)
 ├── tests/
 │   └── smoke.py            # 烟雾测试
-└── .Log/                   # 重要事件日志(归档)
+└── logs/                  # 重要事件日志(归档,小写 · 2026-07-27 起)
 ```
 
 ## 3. API 速览
@@ -74,17 +78,19 @@ AnalysisWeb/
 
 ## 4. 标签维度(AnalysisWeb 专用,非 PictureWeb 那套)
 
-| 字段 | 含义 | 示例 |
-|---|---|---|
-| `analysis_type` | 分析类型(最关键) | `城市总图` / `动线分析` / `视线分析` / `业态分析` / `日照分析` / `功能分区` / `形态生成` / `爆炸图` |
-| `drawing_method` | 画法 | `轴测图` / `平面图` / `剖面图` / `透视图` / `混合媒介` |
-| `subject` | 主题 | `公共空间` / `商业综合体` / `办公` / `居住` / `城市设计` / `景观` |
-| `scale` | 尺度 | `城市级` / `街区级` / `建筑级` / `单元级` |
-| `render_style` | 渲染风格 | `线稿` / `渲染` / `混合媒介` / `拼贴` |
-| `view_type` | 视角 | `鸟瞰` / `透视` / `剖切` / `轴测` |
-| `color_palette` | 配色 | `暖橙` / `冷青` / `单色` / `多色` |
-| `mood` | 氛围 | `学术严谨` / `活泼` / `极简` / `高密度` |
-| `keywords` | 自由关键词 | 逗号分隔 |
+| 字段 | 含义 | 示例 | DB 列 | /api/search 参数 | /api/facets key |
+|---|---|---|---|---|---|
+| `analysis_type` | 分析类型(最关键) | `城市总图` / `动线分析` / `视线分析` / `业态分析` / `日照分析` / `功能分区` / `形态生成` / `爆炸图` | ✅ | ✅ `?analysis_type=` | ✅ `analysis_types` |
+| `drawing_method` | 画法 | `轴测图` / `平面图` / `剖面图` / `透视图` / `混合媒介` | ✅ 2026-08-06 加 | ✅ `?drawing_method=` | ✅ `drawing_methods` |
+| `subject` | 主题 | `公共空间` / `商业综合体` / `办公` / `居住` / `城市设计` / `景观` | ✅ 2026-08-06 加 | ✅ `?subject=` | ✅ `subjects` |
+| `scale` | 尺度 | `城市级` / `街区级` / `建筑级` / `单元级` | ✅ | ✅ `?scale=` | ✅ `scales` |
+| `render_style` | 渲染风格 | `线稿` / `渲染` / `混合媒介` / `拼贴` | ✅ | ✅ `?render_style=` | ✅ `render_styles` |
+| `view_type` | 视角 | `鸟瞰` / `透视` / `剖切` / `轴测` | ✅ | ✅ `?view=` | ✅ `view_types` |
+| `color_palette` | 配色 | `暖橙` / `冷青` / `单色` / `多色` | ✅ | ✅ `?color_palette=` | ✅ `color_palettes` |
+| `mood` | 氛围 | `学术严谨` / `活泼` / `极简` / `高密度` | ✅ | ✅ `?mood=` | ✅ `moods` |
+| `keywords` | 自由关键词 | 逗号分隔 | ✅ | ✅ `?keywords=` | — |
+
+> 2026-08-06 P1 兑现:`/api/search` 接 14 维参数(q + keywords + 9 维标签 + favs_only + limit),`/api/facets` 返 9 维 DISTINCT 列表供前端 chips。老 DB 缺 `drawing_method` / `subject` 列时,server 启动时 `_ensure_db_schema()` 幂等 ALTER TABLE 加列(不丢老数据,新列空串),`/api/facets` 对应返回 `[]` 不报错。
 
 ## 5. 推送规范
 
@@ -128,3 +134,16 @@ $h = @{Authorization="Bearer $env:GH_TOKEN"}
 - 是否给 AnalysisDb 加 `analysis_type` 字段(从 v1.0.0 起已加)?
 - 端口 8082 是否被占?(可用 `ANALYSISWEB_TEST_PORT=9082` dev 模式)
 - 是否支持更多图源(Concept/ / Section/ / Detail/)?(目前只 Style/,后续按需建子目录)
+
+## 10. 变更记录(夜间迭代批 3 · 2026-08-06 02:00)
+
+| 优先级 | 问题 | 修复 | 证据 |
+|---|---|---|---|
+| P0 | server.py:580 端口冲突 `sleep 10` 隐式 return 0,cron 假阳性 green | except OSError 改 `sys.exit(1)`,独立 try KeyboardInterrupt | 双进程同端口,后者 `exit_code=1` |
+| P1 | 9 维承诺空头:_search 只 7 维,facets 不返 6 维 | `_search` 增 6 参 + SELECT 拉满 9 维 + 响应回显 6 维;`_facets` 增 6 维 DISTINCT;DB 启动幂等 ALTER 加 `drawing_method` / `subject` | curl `?analysis_type=动线` 命中 1,`?scale=城市级` 命中 2 |
+| P1 | `_semantic_search` 硬塞 `sys.path.insert(0, 父目录)` 违反独立运营 | 改读 `ANALYSISWEB_EMBEDDING_DIR` env,缺 import 失败 → 返 501 + 友好错误 | curl POST 无 env → `status=501` + 中文提示 |
+| P1 | 启动横幅硬编码 `192.168.181.136`(PictureWeb Windows 时代) | 启动时 socket 连 8.8.8.8:80 探测本机 LAN IP,失败回退 `ifconfig` 提示 | 本机打印 `http://192.168.0.104:8082/` |
+| P2 | AGENTS.md / README.md 行数(`~580`)与 `.Log/` 漂移 | 同步到 `722 / 1218`;目录结构补 `thumbs/` `start.sh` `_push_*.py` `tag_images.py`;`.Log/` → `logs/` | `wc -l` 校验一致 |
+| P0(批 1) | start.sh 缺 `-X utf8` 跨平台不一致 | start.sh:16 改 `python3 -X utf8 server.py` + 顶部加注释 | 启动横幅中文无乱码 |
+
+> 全部走 `git_data_push.py` / `_push_gitee_v100.py` 推 GitHub + Gitee,exit code 见 commit。
