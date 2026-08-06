@@ -18,7 +18,9 @@ OLD_IMG_ROOT = '/Users/aaron/Mac/WorkTeam/05_Space/03_Architect/Mobile'
 # 权限控制(2026-06-27 增加):只有本机 Mac 的 IP 可以写操作,其他电脑只读
 # 读:GET /, GET /img/*, GET /api/search, GET /api/facets, GET /api/favorites
 # 写:POST /api/favorites, POST /api/upload_search, POST /api/ai_image
-ADMIN_IPS = {'127.0.0.1', '192.168.181.136', '::1'}  # 本机 loopback + Windows LAN IP
+# 2026-08-07 P1 修复:删 192.168.181.136(PictureWeb 时代 Windows LAN IP,Mac mini 永不可达)
+# 现在 ADMIN_IPS 只留 loopback;若同网段要写操作,改本机 LAN IP 或走 SSH 端口转发
+ADMIN_IPS = {'127.0.0.1', '::1'}  # 本机 loopback
 WRITE_PATHS = {'/api/favorites', '/api/upload_search', '/api/ai_image', '/api/semantic_search', '/api/intent_search'}
 
 # 并发连接数限制(2026-06-28 调整):图片缩略图并发需求高,20 个
@@ -238,10 +240,12 @@ class Handler(SimpleHTTPRequestHandler):
                        'arch_type, render_company, view_type, '
                        'analysis_type, drawing_method, subject, scale, render_style, color_palette')
         if use_fts:
-            # 2026-08-06 P0 修复:replace 必须按 ', ' (带空格) 替换,否则生成 'i. project' 带空格的非法列名
+            # 2026-08-07 P0 修复 ②:之前引用了未定义的 fts_q(只有 fts_terms),use_fts=True 直接 NameError;
+            # 同时把用户输入拼进 SQL 字符串存在注入风险,改 MATCH ? 参数化绑定
+            fts_q = " ".join(fts_terms)
             sql = (f"SELECT DISTINCT i.{select_cols.replace(', ', ', i.')} "
-                   f"FROM images_fts f JOIN images i ON i.id = f.id WHERE images_fts MATCH '{fts_q}'")
-            params = []
+                   f"FROM images_fts f JOIN images i ON i.id = f.id WHERE images_fts MATCH ?")
+            params = [fts_q]
         else:
             sql = f"SELECT {select_cols} FROM images WHERE 1=1"
             params = []

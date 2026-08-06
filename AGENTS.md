@@ -72,7 +72,7 @@ AnalysisWeb/
 ## 3. API 速览
 
 公开端点: `/api/search` `/api/facets` `/api/favorites` (GET)
-本机端点 (`127.0.0.1` / `192.168.181.136` / `::1`): `POST /api/favorites` `POST /api/upload_search`
+本机端点 (`127.0.0.1` / `::1`): `POST /api/favorites` `POST /api/upload_search`
 
 完整列表 + 权限: `server.py:ADMIN_IPS` + README.md
 
@@ -146,4 +146,14 @@ $h = @{Authorization="Bearer $env:GH_TOKEN"}
 | P2 | AGENTS.md / README.md 行数(`~580`)与 `.Log/` 漂移 | 同步到 `722 / 1218`;目录结构补 `thumbs/` `start.sh` `_push_*.py` `tag_images.py`;`.Log/` → `logs/` | `wc -l` 校验一致 |
 | P0(批 1) | start.sh 缺 `-X utf8` 跨平台不一致 | start.sh:16 改 `python3 -X utf8 server.py` + 顶部加注释 | 启动横幅中文无乱码 |
 
+## 11. 变更记录(夜间迭代批 4 · 2026-08-07 02:00)
+
+| 优先级 | 问题 | 修复 | 证据 |
+|---|---|---|---|
+| P0 | server.py:243 `MATCH '{fts_q}'` 引用未定义 `fts_q`(use_fts=True 直接 NameError)+ 字符串拼接存在 SQL 注入 | `fts_q = " ".join(fts_terms)` 先定义,再 `MATCH ?` 参数化绑定 `params = [fts_q]` | curl `?q=城市` 不再 NameError;`?keywords=test' OR 1=1 --` 返 `no such table: images_fts` 而非 500 |
+| P1 | server.py:21 + README.md:62 + AGENTS.md:75 三处 `ADMIN_IPS` 残留 `192.168.181.136`(Windows LAN,Mac 永不可达) | 三处全部删,只留 `{'127.0.0.1', '::1'}`;README 补 Mac 同网段走 SSH `-L` 端口转发 | `wc -l` 三文件一致删 |
+| P1 | build_db.py 默认 `os.remove(DB_PATH)` 清空 9 维标签,INSERT 也只写元数据,用户死循环 | 加 `--incremental` / `--keep` 开关:增量模式按 `file_hash` 跳过重复;默认模式给 ⚠️ 警告;docstring 强提示 `build_db → tag_images` 两阶段流程 | `build_db.py --incremental` 跳过 11 张已存在,DB 仍 11 条 |
+| P2 | README.md 启动段只写 Windows;env 表漏 `ANALYSISWEB_EMBEDDING_DIR` | 启动段补 `bash ./start.sh` / `python3 -X utf8 server.py`;env 表加 `ANALYSISWEB_EMBEDDING_DIR`(默认空,缺则 501) | README 行数 107→114 |
+
+> 行数同步:`server.py 727` · `index.html 1218` · `scripts/build_db.py 157` · `README.md 114` · `AGENTS.md 159`(本批后)
 > 全部走 `git_data_push.py` / `_push_gitee_v100.py` 推 GitHub + Gitee,exit code 见 commit。

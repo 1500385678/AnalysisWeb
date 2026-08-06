@@ -9,6 +9,11 @@
 ## 启动
 
 ```bash
+# macOS / Linux
+bash ./start.sh
+# 或
+python3 -X utf8 server.py
+
 # Windows
 python -X utf8 server.py
 # 或
@@ -59,7 +64,8 @@ python -X utf8 server.py
 | POST | `/api/upload_search` | 本机 | 以图搜图 |
 | GET | `/img/<相对路径>` | 公开 | 图片直出 |
 
-> 权限"本机"=`127.0.0.1` / `192.168.181.136` / `::1`,见 `server.py:ADMIN_IPS`
+> 权限"本机"=`127.0.0.1` / `::1` (loopback),见 `server.py:ADMIN_IPS`
+> Mac mini 同网段如需写操作:改本机 LAN IP 替换 `'::1'`,或用 `ssh -L 8082:127.0.0.1:8082` 端口转发
 
 ## 目录
 
@@ -92,8 +98,9 @@ AnalysisWeb/
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `ANALYSISWEB_HOME` | `D:\Mac\Mac\Mac\workteam\05_space\03_architect\Attack\03-Analysis` | 图片根的父目录 |
+| `ANALYSISWEB_HOME` | `D:\Mac\Mac\Mac\workteam\05_space\03_architect\Attack\03-Analysis` | 图片根的父目录(Mac 用户改成 `/Users/aaron/Mac/...`) |
 | `ANALYSISWEB_TEST_PORT` | `8082` | dev 用端口(默认即 8082,设了则覆盖) |
+| `ANALYSISWEB_EMBEDDING_DIR` | _(空)_ | AI 语义搜 `embedding.py` 所在目录;**不设则 `/api/semantic_search` 返 501 + 友好提示** |
 
 ## 变更记录
 
