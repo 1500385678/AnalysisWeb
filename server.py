@@ -238,7 +238,8 @@ class Handler(SimpleHTTPRequestHandler):
                        'arch_type, render_company, view_type, '
                        'analysis_type, drawing_method, subject, scale, render_style, color_palette')
         if use_fts:
-            sql = (f"SELECT DISTINCT i.{select_cols.replace(',', ', i.')} "
+            # 2026-08-06 P0 修复:replace 必须按 ', ' (带空格) 替换,否则生成 'i. project' 带空格的非法列名
+            sql = (f"SELECT DISTINCT i.{select_cols.replace(', ', ', i.')} "
                    f"FROM images_fts f JOIN images i ON i.id = f.id WHERE images_fts MATCH '{fts_q}'")
             params = []
         else:
