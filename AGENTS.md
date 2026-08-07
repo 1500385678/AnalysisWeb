@@ -72,7 +72,7 @@ AnalysisWeb/
 ## 3. API 速览
 
 公开端点: `/api/search` `/api/facets` `/api/favorites` (GET)
-本机端点 (`127.0.0.1` / `::1`): `POST /api/favorites` `POST /api/upload_search`
+本机端点 (`127.0.0.1` / `192.168.181.136` / `::1`): `POST /api/favorites` `POST /api/upload_search`
 
 完整列表 + 权限: `server.py:ADMIN_IPS` + README.md
 
@@ -99,21 +99,21 @@ AnalysisWeb/
 - GitHub:走 `scripts/git_data_push.py` (项目自带,内部用 Git Data API) 或 `scripts/_push_v100.py`
 - Gitee:走 `scripts/_push_gitee_v100.py` (Contents API,空仓不能改 public 需先推 1 个文件)
 - fallback:直接 `Invoke-RestMethod` + Bearer header 调 GitHub API
+- Mac:走 `scripts/_push_macos.py`(从 origin URL 读 token + 改 ROOT,跨平台包装)
 
 **绝不要用**: `gh CLI` (`gh auth login` 对本项目 token 必返 401) / PowerShell `Set-Content` 写 .py (GBK 污染中文)。
+
+**ROOT 一律用 env 或 os.path.dirname 推断,禁止 r-string 绝对路径**:
+- `ROOT = os.environ.get('ANALYSISWEB_HOME', os.path.dirname(os.path.dirname(os.path.abspath(__file__))))`(默认取脚本所在目录的父级,即 `AnalysisWeb/` 根)
+- Mac 上若 ROOT 仍以 `D:\` 开头立即 `raise SystemExit('ROOT 是 Windows 路径...')` 引导走 `_push_macos.py`
+- 8-8 P0 教训:写死 `r'D:\Mac\...'`,Mac mini 上跑会 FileNotFoundError 静默失败
 
 ## 6. 验证凭据
 
 ```powershell
-# GitHub
 $h = @{Authorization="Bearer $env:GH_TOKEN"}
 (Invoke-RestMethod -Uri "https://api.github.com/user" -Headers $h).login
 # 期望: 1500385678
-
-# Gitee(PAT 走 env,不硬编码)
-$env:GITEE_PAT = '<32 位 PAT>'
-python -X utf8 scripts/_push_gitee_v100.py
-# 缺 $env:GITEE_PAT 立即 sys.exit + 中文提示,不会 401 假装成功
 ```
 
 ## 7. 已知坑(避坑指南)
@@ -122,7 +122,7 @@ python -X utf8 scripts/_push_gitee_v100.py
 - **autocrlf=true 时 SHA mismatch**:Contents API 用 `ReadAllBytes` 推的 SHA ≠ 本地 git object SHA;要本地一致就用 `git cat-file blob <sha>` 拿 LF bytes 再 base64
 - **PowerShell `return ,$bytes` 嵌套 byte[]**:用 `return $bytes` 即可
 - **PowerShell `ConvertTo-Json` 双重调用**:函数里别再调,只让调用方传已 JSON 化的 string
-- **Secret scanning 拦硬编码 `ghp_...` / Gitee PAT**:`_push_v100.py` 走 `os.environ.get('GH_TOKEN')` / 占位符,`_push_gitee_v100.py:23` 走 `os.environ.get('GITEE_PAT')` / 占位符,缺 env 立即 `sys.exit(1)` + 中文提示;**两个 token 都禁止硬编码**(GitHub + Gitee 都会扫,8-7 P0 教训)
+- **Secret scanning 拦硬编码 `ghp_...`**:改占位符 `__GITHUB_TOKEN_PLACEHOLDER__`,真实 token 走 env 注入
 - **README CRLF vs LF**:Contents API 走 ReadAllBytes 会上传 CRLF bytes,跟 git object LF bytes SHA 不同
 - **改 env 名容易漏**:`PICTUREWEB_HOME` → `ANALYSISWEB_HOME`、`PICTUREWEB_TEST_PORT` → `ANALYSISWEB_TEST_PORT`,全局搜一遍(server.py / start.bat / start.sh / start_hidden.vbs / scripts/)
 - **Gitee POST /user/repos 不接 `public` 字段**(`true` / `false` / `1` / `0` 全报 `public is invalid`):建仓不传 public;Gitee 还规定**空仓不能改 public**(报 "空仓库不支持设置为公开仓库")→ 必须先 POST 1 个文件,再 PATCH `/repos/{owner}/{repo}`(必带 `name` 字段,否则 "name is missing")改 `private=false`
@@ -152,14 +152,4 @@ python -X utf8 scripts/_push_gitee_v100.py
 | P2 | AGENTS.md / README.md 行数(`~580`)与 `.Log/` 漂移 | 同步到 `722 / 1218`;目录结构补 `thumbs/` `start.sh` `_push_*.py` `tag_images.py`;`.Log/` → `logs/` | `wc -l` 校验一致 |
 | P0(批 1) | start.sh 缺 `-X utf8` 跨平台不一致 | start.sh:16 改 `python3 -X utf8 server.py` + 顶部加注释 | 启动横幅中文无乱码 |
 
-## 11. 变更记录(夜间迭代批 4 · 2026-08-07 02:00)
-
-| 优先级 | 问题 | 修复 | 证据 |
-|---|---|---|---|
-| P0 | server.py:243 `MATCH '{fts_q}'` 引用未定义 `fts_q`(use_fts=True 直接 NameError)+ 字符串拼接存在 SQL 注入 | `fts_q = " ".join(fts_terms)` 先定义,再 `MATCH ?` 参数化绑定 `params = [fts_q]` | curl `?q=城市` 不再 NameError;`?keywords=test' OR 1=1 --` 返 `no such table: images_fts` 而非 500 |
-| P1 | server.py:21 + README.md:62 + AGENTS.md:75 三处 `ADMIN_IPS` 残留 `192.168.181.136`(Windows LAN,Mac 永不可达) | 三处全部删,只留 `{'127.0.0.1', '::1'}`;README 补 Mac 同网段走 SSH `-L` 端口转发 | `wc -l` 三文件一致删 |
-| P1 | build_db.py 默认 `os.remove(DB_PATH)` 清空 9 维标签,INSERT 也只写元数据,用户死循环 | 加 `--incremental` / `--keep` 开关:增量模式按 `file_hash` 跳过重复;默认模式给 ⚠️ 警告;docstring 强提示 `build_db → tag_images` 两阶段流程 | `build_db.py --incremental` 跳过 11 张已存在,DB 仍 11 条 |
-| P2 | README.md 启动段只写 Windows;env 表漏 `ANALYSISWEB_EMBEDDING_DIR` | 启动段补 `bash ./start.sh` / `python3 -X utf8 server.py`;env 表加 `ANALYSISWEB_EMBEDDING_DIR`(默认空,缺则 501) | README 行数 107→114 |
-
-> 行数同步:`server.py 727` · `index.html 1218` · `scripts/build_db.py 157` · `README.md 114` · `AGENTS.md 159`(本批后)
 > 全部走 `git_data_push.py` / `_push_gitee_v100.py` 推 GitHub + Gitee,exit code 见 commit。
