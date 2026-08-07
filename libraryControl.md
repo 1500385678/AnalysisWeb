@@ -22,7 +22,9 @@ updated: 2026-08-02
 
 ## 上级
 
-- [[Defense/_index/web/webControl]]
+<!-- 2026-08-08 Verifier P2 修复:已弃用 wikilink:[[Defense/_index/web/webControl]] (7-24 拆分后失效) -->
+<!-- 上级实际指向:[[Attack/03-Analysis/ArchiAttackAnalysisControl.md]],见 frontmatter 上级字段 -->
+<!-- 本 control 文件已弃用,见 AGENTS.md / README.md 拿真值源 -->
 
 ## 平级
 
@@ -41,6 +43,7 @@ _(暂无)_
 
 > 变更记录
 > - 2026-06-27 · 创建 control 文件(军衔:营长) · Macmini
+> - 2026-08-08 · Verifier P2 修复:Defense wikilink 注释成 HTML,弃用标记 · 长史补 race
 
 ---
 
