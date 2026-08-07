@@ -105,9 +105,15 @@ AnalysisWeb/
 ## 6. 验证凭据
 
 ```powershell
+# GitHub
 $h = @{Authorization="Bearer $env:GH_TOKEN"}
 (Invoke-RestMethod -Uri "https://api.github.com/user" -Headers $h).login
 # 期望: 1500385678
+
+# Gitee(PAT 走 env,不硬编码)
+$env:GITEE_PAT = '<32 位 PAT>'
+python -X utf8 scripts/_push_gitee_v100.py
+# 缺 $env:GITEE_PAT 立即 sys.exit + 中文提示,不会 401 假装成功
 ```
 
 ## 7. 已知坑(避坑指南)
@@ -116,7 +122,7 @@ $h = @{Authorization="Bearer $env:GH_TOKEN"}
 - **autocrlf=true 时 SHA mismatch**:Contents API 用 `ReadAllBytes` 推的 SHA ≠ 本地 git object SHA;要本地一致就用 `git cat-file blob <sha>` 拿 LF bytes 再 base64
 - **PowerShell `return ,$bytes` 嵌套 byte[]**:用 `return $bytes` 即可
 - **PowerShell `ConvertTo-Json` 双重调用**:函数里别再调,只让调用方传已 JSON 化的 string
-- **Secret scanning 拦硬编码 `ghp_...`**:改占位符 `__GITHUB_TOKEN_PLACEHOLDER__`,真实 token 走 env 注入
+- **Secret scanning 拦硬编码 `ghp_...` / Gitee PAT**:`_push_v100.py` 走 `os.environ.get('GH_TOKEN')` / 占位符,`_push_gitee_v100.py:23` 走 `os.environ.get('GITEE_PAT')` / 占位符,缺 env 立即 `sys.exit(1)` + 中文提示;**两个 token 都禁止硬编码**(GitHub + Gitee 都会扫,8-7 P0 教训)
 - **README CRLF vs LF**:Contents API 走 ReadAllBytes 会上传 CRLF bytes,跟 git object LF bytes SHA 不同
 - **改 env 名容易漏**:`PICTUREWEB_HOME` → `ANALYSISWEB_HOME`、`PICTUREWEB_TEST_PORT` → `ANALYSISWEB_TEST_PORT`,全局搜一遍(server.py / start.bat / start.sh / start_hidden.vbs / scripts/)
 - **Gitee POST /user/repos 不接 `public` 字段**(`true` / `false` / `1` / `0` 全报 `public is invalid`):建仓不传 public;Gitee 还规定**空仓不能改 public**(报 "空仓库不支持设置为公开仓库")→ 必须先 POST 1 个文件,再 PATCH `/repos/{owner}/{repo}`(必带 `name` 字段,否则 "name is missing")改 `private=false`

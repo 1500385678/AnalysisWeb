@@ -20,7 +20,10 @@ API = 'https://gitee.com/api/v5'
 OWNER = 'architectzy'
 REPO = 'AnalysisWeb'
 BRANCH = 'master'  # Gitee 默认是 master,不是 main
-GITEE_PAT = '5ed52babcbfa332404a11863bc065b00'
+
+# 2026-08-07 Verifier P0 修复:硬编码 PAT 会被 Gitee secret scanning 拦
+# 改成 env 注入,缺 env 立即 sys.exit(避免静默 401 让人以为推成功)
+GITEE_PAT = os.environ.get('GITEE_PAT') or '__GITEE_PAT_PLACEHOLDER__'
 
 ROOT = r'D:\Mac\Mac\Mac\workteam\05_space\03_architect\Attack\03-Analysis\_ArchiAttackAnalysisLib\AnalysisWeb'
 
@@ -271,6 +274,13 @@ def verify():
 
 
 def main():
+    # 2026-08-07 Verifier P0 修复:缺 env 立即退出,不要静默 401
+    if GITEE_PAT == '__GITEE_PAT_PLACEHOLDER__':
+        print('❌ GITEE_PAT 环境变量未设置,无法推 Gitee', file=sys.stderr)
+        print('   请先在 shell 里 export GITEE_PAT=<你的 32 位 PAT>', file=sys.stderr)
+        print('   然后再跑: python -X utf8 scripts/_push_gitee_v100.py', file=sys.stderr)
+        sys.exit(1)
+
     print('=== AnalysisWeb v1.0.0 · Gitee 推送 ===')
     print(f'  owner: {OWNER}')
     print(f'  repo:  {REPO}')
