@@ -137,10 +137,12 @@ def get_remote_head(token):
 
 
 def get_commit_tree(sha, token):
-    s, d = request(f'/repos/{REPO}/git/commits/{sha}', token=token)
+    # 2026-08-08 批 1:/git/commits/{sha} 对刚通过 Git Data API 创建的 commit 偶发 404,
+    # 改用 /commits/{sha}(REST)拿 tree,语义等价
+    s, d = request(f'/repos/{REPO}/commits/{sha}', token=token)
     if s != 200:
-        sys.exit(f'拿 commit tree 失败: {s} {d.get("message")}')
-    return d['tree']['sha']
+        sys.exit(f'拿 commit tree 失败(/commits): {s} {d.get("message")}')
+    return d['commit']['tree']['sha']
 
 
 def replay_commit(commit_sha, parent_sha, parent_tree_sha, token):
