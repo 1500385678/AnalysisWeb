@@ -869,7 +869,9 @@ async function init() {
   fillSelect('project', facets.projects);
   fillSelect('arch', facets.archs || []);
   fillSelect('company', facets.companies || []);
-  fillSelect('view', (facets.view_types || []).map(v => ({value: v, label: v === 'bird-eye' ? '鸟瞰' : v === 'eye-level' ? '人视' : v === 'other' ? '其他' : v})));
+  // 2026-08-08 Verifier P1 修复:view_types facets 改 DB 实时 DISTINCT 中文值,直接显示,不再三语硬编码
+  // (AGENTS.md §4 表 view_type 示例:鸟瞰/透视/剖切/轴测;DB tag_images.py 写入也是中文)
+  fillSelect('view', (facets.view_types || []).map(v => ({value: v, label: v})));
   fillSelect('scene', facets.scenes);
   fillSelect('light', facets.lights);
   fillSelect('mood', facets.moods);
@@ -1120,7 +1122,9 @@ function renderCards(items) {
     card.className = 'card';
     const tagsHtml = (item.scene||'').split(';').map(t=>t.trim()).filter(Boolean).slice(0,3).map(t=>`<span class="tag">${t}</span>`).join('');
     const simHtml = item.similarity !== undefined ? `<div class="sim-badge">相似 ${item.similarity}%</div>` : '';
-    const viewHtml = item.view_type === 'bird-eye' ? '<div class="view-badge">鸟瞰</div>' : item.view_type === 'eye-level' ? '<div class="view-badge">人视</div>' : (item.view_type === 'other' ? '<div class="view-badge">其他</div>' : '');
+    // 2026-08-08 Verifier P1 修复:viewHtml 直接用 DB 中文值(鸟瞰/透视/剖切/轴测),
+    // 不再三元硬编码 bird-eye/eye-level/other(那会跟 DB DISTINCT 错位导致 badge 永远不出现)
+    const viewHtml = item.view_type ? `<div class="view-badge">${item.view_type}</div>` : '';
     const favActive = favs.includes(item.id) ? 'active' : '';
     card.innerHTML = `
       ${simHtml}

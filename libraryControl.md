@@ -1,97 +1,148 @@
 ---
 aliases:
   - library
+  - AnalysisWeb
 tags:
   - control
-  - 营长
+  - 排长
+  - AnalysisWeb
   - 建筑师助手
 created: 2026-06-27
-updated: 2026-06-27
-role: 排长
-上级: "[[Attack/03-Analysis/ArchiAttackAnalysisControl.md]]"  # 营长 · 03-Analysis 分析武器
+updated: 2026-08-08
+role: AnalysisWeb 索引员/排长
+上级: "[[Attack/03-Analysis/_ArchiAttackAnalysisLib/AnalysisWeb/AGENTS.md]]"  # AnalysisWeb 项目真值源
 下属: []
 资源: []
-updated: 2026-08-02
 ---
 
-# 🎖️ 营长 · library
+# 🎖️ 排长 · AnalysisWeb 索引员
 
-> **军衔**:营长(Mac → 军长 → 师长 → 旅长 → 团长 → 营长)
-> **路径**:`library/`
-> **职责**:library 索引
+> **军衔**:排长(Mac → 军长 → 师长 → 旅长 → 团长 → 营长 → 排长)
+> **路径**:`Attack/03-Analysis/_ArchiAttackAnalysisLib/AnalysisWeb/`
+> **职责**:AnalysisWeb(8082 建筑方案分析图库)索引与运营
 
 ## 上级
 
-<!-- 2026-08-08 Verifier P2 修复:已弃用 wikilink:[[Defense/_index/web/webControl]] (7-24 拆分后失效) -->
-<!-- 上级实际指向:[[Attack/03-Analysis/ArchiAttackAnalysisControl.md]],见 frontmatter 上级字段 -->
-<!-- 本 control 文件已弃用,见 AGENTS.md / README.md 拿真值源 -->
+- 营长:[[Attack/03-Analysis/ArchiAttackAnalysisControl.md]]
+- 项目真值源:**AGENTS.md**(本项目根目录)——所有变更、推送规范、避坑指南以 AGENTS.md 为准
 
 ## 平级
 
-_(暂无)_
+- PictureWeb(8081 效果图/参考图库)——兄弟项目,共用检索壳
+- 03-Analysis 其他项目
 
 ## 下属
 
-_(暂无)_
+_(暂无 — AnalysisWeb 是单仓单服务结构)_
 
 ## 资源
 
-- 本目录下所有内容文件
-- 关联 Obsidian 反链:在 Graph View 可见指挥链
+- `AGENTS.md` · 项目真值源(必读)
+- `README.md` · 用户档
+- `server.py` · 后端(单文件,~729 行)
+- `index.html` · 搜索主页(单文件,~1218 行)
+- `scripts/` · 推送 / 打标 / 巡检工具
+- `thumbs/` · 缩略图缓存(运行时,gitignore)
+- `_AnalysisDb/AnalysisDb.db` · SQLite 数据库(运行时,gitignore)
 
 ---
 
 > 变更记录
 > - 2026-06-27 · 创建 control 文件(军衔:营长) · Macmini
-> - 2026-08-08 · Verifier P2 修复:Defense wikilink 注释成 HTML,弃用标记 · 长史补 race
+> - 2026-07-24 · 从 PictureWeb 拆出 v1.0.0 独立运营 · 端口 8081 → 8082
+> - 2026-08-02 · frontmatter 调整
+> - 2026-08-08 · Verifier P2 修复(方案A):Defense 死链 wikilink 整段删,正文改写为 AnalysisWeb 当前 v1.0.0 + 8082 + 9 维标签,真值源走 AGENTS.md · 排长
 
 ---
 
-## 详情(来自原 README)
+# AnalysisWeb · 建筑方案分析图库
 
-> 独立的图库检索系统。多维标签 + 全文搜索 + AI 语义搜 + 以图搜图。
+## 这是什么
+
+AnalysisWeb 是独立的**建筑方案分析图库**检索系统。多维标签 + 全文搜索 + 以图搜图。
+端口 **8082** · Python 标准库 + Pillow · 零 npm 依赖。
+
+**前身**: 从 `PictureWeb` (1500385678/PictureWeb,端口 8081) 拆出,2026-07-24 **v1.0.0** 独立运营。
+PictureWeb 收效果图 / 参考图,AnalysisWeb 专门收**方案分析图**(轴测、平面、剖面、动线、视线、业态、爆炸等)。
+
+**定位**: 不是"找好看的图",是"做方案时找同类型分析方法、找同尺度同主题的参考"。
+
+## 关键能力
+
+- 端口 **8082**(兄弟 PictureWeb 是 8081)
+- **9 维标签检索**:`analysis_type` / `drawing_method` / `subject` / `scale` / `render_style` / `view_type` / `color_palette` / `mood` / `keywords`
+- 全文搜索(SQLite FTS5)
+- 以图搜图(PIL pHash)
+- 收藏夹
+- AI 语义搜索(可选,需 `ANALYSISWEB_EMBEDDING_DIR`)
 
 ## 启动
 
 ```bash
+# Mac
+python3 -X utf8 server.py
+# 打开 http://127.0.0.1:8082/
+
 # Windows
 双击 start.bat
-
-# 或手动
-python server.py
+# 或 python -X utf8 server.py
 ```
 
-打开 **http://127.0.0.1:8081/**
+## 环境变量
 
-## 功能
+- `ANALYSISWEB_HOME` · 图片根父目录(默认脚本推断)
+- `ANALYSISWEB_TEST_PORT` · 端口覆盖(默认 8082)
+- `ANALYSISWEB_EMBEDDING_DIR` · AI 语义搜 embedding.py 目录(缺则 501)
+- `GH_TOKEN` · GitHub 推送 token(secret scanning 必须走 env)
+- `GITEE_PAT` · Gitee 推送 PAT(secret scanning 必须走 env)
 
-- 🔍 5 维标签检索（scene / light / space / material / mood）
-- ⚡ FTS5 全文搜索（中文 2-gram 分词）
-- 🤖 AI 语义搜索（需 embedding.py）
-- 🖼️ 以图搜图（上传图找相似）
-- ⭐ 收藏夹
+## 仓库
+
+- GitHub: https://github.com/1500385678/AnalysisWeb
+- Gitee: https://gitee.com/architectzy/AnalysisWeb
+
+## API 速览
+
+| Method | Path | 说明 |
+|--------|------|------|
+| GET | `/api/search` | 9 维搜索 + 全文 + favs_only + limit |
+| GET | `/api/facets` | 9 维 DISTINCT 值供前端 chips |
+| GET | `/api/favorites` | 收藏列表 |
+| POST | `/api/favorites` | 切换收藏(本机权限) |
+| GET/POST | `/api/upload_search` | 以图搜图(本机权限) |
+| GET/POST | `/api/semantic_search` | AI 语义搜(需 embedding) |
+| GET/POST | `/api/intent_search` | 设计意图找参考 |
+| GET/POST | `/api/ai_image` | AI 看图(本机权限) |
 
 ## 目录
 
 ```
-library/
-├── server.py      # Python 后端（端口 8081）
-├── index.html     # 搜索主页
-├── start.bat      # Windows 启动
-├── README.md
-├── LICENSE
-└── db/
-    └── images.db  # 图库数据库
+AnalysisWeb/
+├── server.py             # 后端(单文件,~729 行)
+├── index.html            # 搜索主页(单文件,~1218 行)
+├── start.bat / start.sh  # 启动脚本(均带 -X utf8 · 跨平台镜像)
+├── start_hidden.vbs      # 无窗口启动(Windows)
+├── libraryControl.md     # 本文件 · AnalysisWeb 索引员/排长
+├── AGENTS.md             # 项目真值源(必读)
+├── README.md             # 用户档
+├── LICENSE               # 许可证
+├── __version__.py        # 版本号源
+├── _AnalysisDb/
+│   └── AnalysisDb.db     # SQLite 数据库(gitignore)
+├── thumbs/               # 缩略图缓存(gitignore)
+├── logs/                 # 重要事件日志(gitignore)
+├── docs/
+│   ├── 3agent-workflow.md
+│   └── phase6-design.md
+├── scripts/
+│   ├── build_db.py          # 扫 IMG_ROOT → 建库
+│   ├── git_data_push.py     # Git Data API 推送
+│   ├── _push_v100.py        # GitHub 首发(Contents API)
+│   ├── _push_gitee_v100.py  # Gitee 首发(Contents API)
+│   ├── _push_github_api.py  # GitHub API 通用推 ref 工具
+│   ├── _push_macos.py       # macOS 包装
+│   ├── auto_release.py
+│   └── tag_images.py        # LLM 打标
+└── tests/
+    └── smoke.py
 ```
-
-## API
-
-| Method | Path | 说明 |
-|--------|------|------|
-| GET | `/api/search?q=&scene=&light=&mood=` | 多维搜索 |
-| GET | `/api/facets` | 5 维标签去重值 |
-| GET | `/api/favorites` | 收藏列表 |
-| POST | `/api/favorites` | 切换收藏 |
-| GET | `/api/semantic_search?q=` | AI 语义搜 |
-| POST | `/api/upload_search` | 以图搜图 |
-| GET | `/img/<相对路径>` | 图片直出 |

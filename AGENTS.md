@@ -37,7 +37,7 @@ AnalysisWeb/
 ├── index.html            # 搜索主页(CSS+JS 内嵌,苹果风浅色,1218 行)
 ├── start.bat / start.sh  # 启动脚本(均带 -X utf8 · 跨平台镜像)
 ├── start_hidden.vbs      # 无窗口启动(Windows)
-├── libraryControl.md     # 旧 control 文件(归档)
+├── libraryControl.md     # Obsidian control 文件(排长索引员 · 当前 v1.0.0/8082/9 维 · 2026-08-08 方案A 重写)
 ├── LICENSE               # 许可证
 ├── favorites.json        # 收藏(运行时,gitignore)
 ├── thumbs/               # 缩略图缓存(运行时,gitignore)
@@ -111,10 +111,19 @@ AnalysisWeb/
 ## 6. 验证凭据
 
 ```powershell
+# GitHub · 推 GitHub 时验证
 $h = @{Authorization="Bearer $env:GH_TOKEN"}
 (Invoke-RestMethod -Uri "https://api.github.com/user" -Headers $h).login
 # 期望: 1500385678
+
+# Gitee · 推 Gitee 时验证(access_token query 方式)
+(Invoke-RestMethod -Uri "https://gitee.com/api/v5/user?access_token=$env:GITEE_PAT").login
+# 期望: architectzy
 ```
+
+**两条 token 都必须走 env 注入,绝不要硬编码进 .py 源码**(2026-08-07 P0 教训:GITEE_PAT 32 位 PAT 硬编码会被 Gitee secret scanning 立即吊销):
+- GitHub: `GH_TOKEN` · 占位符 `__GITHUB_TOKEN_PLACEHOLDER__` · 缺 env 立即 `sys.exit(1)`
+- Gitee: `GITEE_PAT` · 占位符 `__GITEE_PAT_PLACEHOLDER__` · 缺 env 立即 `sys.exit(1)`
 
 ## 7. 已知坑(避坑指南)
 
@@ -122,7 +131,7 @@ $h = @{Authorization="Bearer $env:GH_TOKEN"}
 - **autocrlf=true 时 SHA mismatch**:Contents API 用 `ReadAllBytes` 推的 SHA ≠ 本地 git object SHA;要本地一致就用 `git cat-file blob <sha>` 拿 LF bytes 再 base64
 - **PowerShell `return ,$bytes` 嵌套 byte[]**:用 `return $bytes` 即可
 - **PowerShell `ConvertTo-Json` 双重调用**:函数里别再调,只让调用方传已 JSON 化的 string
-- **Secret scanning 拦硬编码 `ghp_...`**:改占位符 `__GITHUB_TOKEN_PLACEHOLDER__`,真实 token 走 env 注入
+- **Secret scanning 拦硬编码 `ghp_...` / Gitee PAT 32 位**:两条 token 都改占位符(`__GITHUB_TOKEN_PLACEHOLDER__` / `__GITEE_PAT_PLACEHOLDER__`),真实 token 走 env 注入,缺 env 立即 `sys.exit(1)`;一旦硬编码进 git history 立即吊销不可回收 → 立刻 `git filter-branch` 或 BFG 清理
 - **README CRLF vs LF**:Contents API 走 ReadAllBytes 会上传 CRLF bytes,跟 git object LF bytes SHA 不同
 - **改 env 名容易漏**:`PICTUREWEB_HOME` → `ANALYSISWEB_HOME`、`PICTUREWEB_TEST_PORT` → `ANALYSISWEB_TEST_PORT`,全局搜一遍(server.py / start.bat / start.sh / start_hidden.vbs / scripts/)
 - **Gitee POST /user/repos 不接 `public` 字段**(`true` / `false` / `1` / `0` 全报 `public is invalid`):建仓不传 public;Gitee 还规定**空仓不能改 public**(报 "空仓库不支持设置为公开仓库")→ 必须先 POST 1 个文件,再 PATCH `/repos/{owner}/{repo}`(必带 `name` 字段,否则 "name is missing")改 `private=false`
@@ -153,3 +162,17 @@ $h = @{Authorization="Bearer $env:GH_TOKEN"}
 | P0(批 1) | start.sh 缺 `-X utf8` 跨平台不一致 | start.sh:16 改 `python3 -X utf8 server.py` + 顶部加注释 | 启动横幅中文无乱码 |
 
 > 全部走 `git_data_push.py` / `_push_gitee_v100.py` 推 GitHub + Gitee,exit code 见 commit。
+
+## 11. 变更记录(夜间迭代批 4 · 2026-08-08 02:00)
+
+| 优先级 | 问题 | 修复 | 证据 |
+|---|---|---|---|
+| P0 | `scripts/_push_gitee_v100.py:23` 硬编码 `GITEE_PAT` 32 位 | 改 `os.environ.get('GITEE_PAT') or '__GITEE_PAT_PLACEHOLDER__'`,缺 env 立即 `sys.exit(1)` + 中文提示;`main()` 加占位符守卫 | 156d67e / 9333f16 / 193541d |
+| P0 | `scripts/_push_v100.py:25` / `_push_gitee_v100.py:25` ROOT 写死 `r'D:\Mac\...'` Windows 路径 | 改 `os.environ.get('ANALYSISWEB_HOME', os.path.dirname(os.path.dirname(os.path.abspath(__file__))))`;Mac 平台守卫 `if sys.platform == 'darwin' and ROOT.startswith(r'D:'): raise SystemExit(...)` | 1c20cac / 78fd60e |
+| P0 | AGENTS.md §6 验证凭据只覆盖 `GH_TOKEN` | 扩成 `GH_TOKEN + GITEE_PAT` 都走 env + 占位符;§7 Secret scanning 补 Gitee PAT 32 位 + git filter-branch 清理 | 本批 commit |
+| P1 | `server.py:353` view_types facets 写死 `['bird-eye','eye-level','other']` 三个英文 | 改 `_distinct('view_type')` 跟其他 6 维一致,DB 实时 DISTINCT 中文值(鸟瞰/透视/剖切/轴测) | f2e23f9 |
+| P1 | `index.html:872,1123` view badge 还在按 bird-eye/eye-level/other 三元英译 | line 872 facets 改直传 `v`(不三语硬编码);line 1123 viewHtml 改 `item.view_type ? \`<div class="view-badge">${item.view_type}</div>\` : ''` | 本批 commit |
+| P1 | `server.py:145` `_search` 异常兜成 200+error,前端拿不到失败信号 | 改 `status=500` 跟其他 endpoint 对齐;`logging.exception()` 把堆栈写进 `logs/` | fd2d785 |
+| P2 | `libraryControl.md` 仍写 8081/5 维/PictureWeb 时代,Defense wikilink 死链 | 方案A 整文件覆写:frontmatter role 改「AnalysisWeb 索引员/排长」,正文写当前 v1.0.0/8082/9 维,上级 wikilink 指向 AGENTS.md,Defense 那行整段删;AGENTS.md §2 同步「旧 control 文件(归档)」→「排长索引员(方案A 重写)」 | 581c2dd(方案B 注释) + 本批(方案A 整文) |
+
+> 本批 commit 走 `git_data_push.py` 推 GitHub + Gitee,exit code 见 commit message。
