@@ -1,4 +1,4 @@
-﻿import sqlite3, os, sys, json, base64  # 2026-07-21 Issue #6:删 hashlib 死代码
+﻿import sqlite3, os, sys, json, base64, logging  # 2026-08-08 P1:logging 顶上导入,做 _search 失败堆栈
 from http.server import HTTPServer, SimpleHTTPRequestHandler, ThreadingHTTPServer
 from threading import Lock
 import urllib.parse
@@ -141,7 +141,10 @@ class Handler(SimpleHTTPRequestHandler):
                     it['url'] = to_img_url(it['path'])
                 self._json({'count': len(items), 'items': items})
             except Exception as e:
-                self._json({'error': str(e), 'count': 0, 'items': []})
+                # 2026-08-08 Verifier P1 修复:不再 silent 200+error,跟其他 endpoint 对齐走 500
+                # 同时 logging.exception 把堆栈写进 logs/,夜间 cron 巡检可定位
+                logging.exception('_search 失败: q=%r project=%r view_type=%r', q, project, view_type)
+                self._json({'error': str(e), 'count': 0, 'items': []}, status=500)
         elif parsed.path == '/api/facets':
             self._json(self._facets())
         elif parsed.path == '/api/favorites':
