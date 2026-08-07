@@ -22,7 +22,15 @@ REPO = '1500385678/AnalysisWeb'
 BRANCH = 'main'
 TAG = 'v1.0.0'
 
-ROOT = r'D:\Mac\Mac\Mac\workteam\05_space\03_architect\Attack\03-Analysis\_ArchiAttackAnalysisLib\AnalysisWeb'
+# 2026-08-08 Verifier P0 修复:ROOT 写死 Windows 路径 → env 注入 + os.path.dirname 兜底
+# 默认值用 os.path.dirname 拿脚本所在目录(AnalysisWeb/scripts/_push_v100.py → AnalysisWeb),
+# 不依赖任何 env,在 Mac/Windows/Linux 都能直接跑;Windows 路径漂移用 _push_macos.py 包装
+ROOT = os.environ.get('ANALYSISWEB_HOME', os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# 2026-08-08 Verifier P0 修复:Mac 上跑这个直推脚本会带 Windows 路径,FileNotFoundError 静默,
+# 加平台守卫让用户改用 _push_macos.py 包装(后者从 origin URL 读 token + 改 ROOT)
+if sys.platform == 'darwin' and ROOT.startswith(r'D:'):
+    raise SystemExit('❌ ROOT 是 Windows 路径(D:\\...),在 Mac 上请用 scripts/_push_macos.py 包装推送')
 
 # 推哪些文件(相对 ROOT)
 # 排除:.gitignore 是第一个(必须有);favorites.json, _AnalysisDb/*, logs/*, thumbs/* 不进 git
