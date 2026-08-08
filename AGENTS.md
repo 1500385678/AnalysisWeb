@@ -33,8 +33,8 @@ PictureWeb 收效果图 / 参考图,AnalysisWeb 专门收**方案分析图**(轴
 
 ```
 AnalysisWeb/
-├── server.py             # 后端(单文件,722 行 · 2026-08-06 P0/P1 后)
-├── index.html            # 搜索主页(CSS+JS 内嵌,苹果风浅色,1218 行)
+├── server.py             # 后端(单文件,736 行 · 2026-08-09 P2 行数同步)
+├── index.html            # 搜索主页(CSS+JS 内嵌,苹果风浅色,1222 行)
 ├── start.bat / start.sh  # 启动脚本(均带 -X utf8 · 跨平台镜像)
 ├── start_hidden.vbs      # 无窗口启动(Windows)
 ├── libraryControl.md     # Obsidian control 文件(排长索引员 · 当前 v1.0.0/8082/9 维 · 2026-08-08 方案A 重写)
@@ -176,3 +176,18 @@ $h = @{Authorization="Bearer $env:GH_TOKEN"}
 | P2 | `libraryControl.md` 仍写 8081/5 维/PictureWeb 时代,Defense wikilink 死链 | 方案A 整文件覆写:frontmatter role 改「AnalysisWeb 索引员/排长」,正文写当前 v1.0.0/8082/9 维,上级 wikilink 指向 AGENTS.md,Defense 那行整段删;AGENTS.md §2 同步「旧 control 文件(归档)」→「排长索引员(方案A 重写)」 | 581c2dd(方案B 注释) + 本批(方案A 整文) |
 
 > 本批 commit 走 `git_data_push.py` 推 GitHub + Gitee,exit code 见 commit message。
+
+## 12. 变更记录(夜间迭代批 3 · 2026-08-09 02:00 · 二次复核)
+
+> 触发:夜间迭代 cron 复跑 8-7 23:25 Verifier 5 条意见(行 17-21),实际全部已在批 3/批 4 闭环;本批只追 P2 行数漂移。
+
+| 优先级 | 问题 | 修复 | 证据 |
+|---|---|---|---|
+| P0 | `server.py:580` 端口冲突 `sleep 10` 隐式 return 0,cron 假阳性 green | 已在 批 3 (2026-08-06) `except OSError as e` 改 `sys.exit(1)` | server.py:733 sys.exit(1) 已就位 |
+| P1 | 9 维承诺空头:`_search` 只 7 维,facets 不返 6 维 | 已在 批 3 (2026-08-06) `_search` 增 6 参 + SELECT 拉满 9 维 + `_facets` 增 6 维 DISTINCT + DB 启动幂等 ALTER 加 `drawing_method` / `subject` | server.py:128-129/350-351 已就位 |
+| P1 | `_semantic_search` 硬塞 `sys.path.insert(0, 父目录)` 违反独立运营 | 已在 批 3 (2026-08-06) 改读 `ANALYSISWEB_EMBEDDING_DIR` env,缺 import 失败 → 返 501 + 友好错误 | server.py:379 已就位 |
+| P1 | 启动横幅硬编码 `192.168.181.136`(PictureWeb Windows 时代) | 已在 批 3 (2026-08-06) 启动时 socket 连 8.8.8.8:80 探测本机 LAN IP | server.py:697-703 已就位 |
+| P2 | AGENTS.md / README.md 行数与代码漂移(server.py 722→736,index.html 1218→1222) | 本批同步 AGENTS.md §2 + README.md 目录树行数 | `wc -l` = 736 / 1222 一致 |
+| P1(发现) | `_facets` 内 `conn.close()` 在 `_distinct('view_type')` 之前,导致 8-8 P1 修复后 `/api/facets` 抛 `Cannot operate on a closed database` | `conn.close()` 移到 7 个 `_distinct()` 调用之后 | curl `/api/facets` 返 9 维 + 中文值,无 `closed database` 异常 |
+
+> 本批 commit 单条,`fix(P2 行数同步 + P1 facets conn.close 顺序)`,走 `git_data_push.py` 推 GitHub + Gitee。

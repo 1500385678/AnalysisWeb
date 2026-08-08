@@ -352,10 +352,10 @@ class Handler(SimpleHTTPRequestHandler):
         scales = _distinct('scale')
         render_styles = _distinct('render_style')
         color_palettes = _distinct('color_palette')
-        conn.close()
         # 2026-08-08 Verifier P1 修复:view_types 不再硬编码 3 英文,改从 DB 实时 DISTINCT
         # 跟 analysis_types/drawing_methods 等保持一致:空列返 [],前端空 chip 无副作用
         view_types = _distinct('view_type')
+        conn.close()
         return {
             'projects': projects, 'scenes': scenes, 'lights': lights, 'moods': moods,
             'archs': archs, 'companies': companies,
