@@ -242,9 +242,16 @@ class Handler(SimpleHTTPRequestHandler):
                        'analysis_type, drawing_method, subject, scale, render_style, color_palette')
         if use_fts:
             # 2026-08-06 P0 修复:replace 必须按 ', ' (带空格) 替换,否则生成 'i. project' 带空格的非法列名
+            # 2026-08-08 Verifier P0 修复(R82):fts_q 未定义 → NameError;FTS5 MATCH 必须参数化;
+            # tokenize 完剥单/双引号兜底,防 LIKE/MATCH 注入(O'Brien / L'église 等)
+            def _sanitise_fts(s):
+                if not s: return ''
+                # FTS5 关键字预留引号,剥掉防语法错;反引号 / 退格 / 斜杠 / NUL 也清
+                return _re.sub(r"[\"'`\\\x00\n\r\t]", ' ', s)
+            fts_q = " ".join(_sanitise_fts(t) for t in fts_terms if t) or "*"
             sql = (f"SELECT DISTINCT i.{select_cols.replace(', ', ', i.')} "
-                   f"FROM images_fts f JOIN images i ON i.id = f.id WHERE images_fts MATCH '{fts_q}'")
-            params = []
+                   f"FROM images_fts f JOIN images i ON i.id = f.id WHERE images_fts MATCH ?")
+            params = [fts_q]
         else:
             sql = f"SELECT {select_cols} FROM images WHERE 1=1"
             params = []
@@ -294,7 +301,7 @@ class Handler(SimpleHTTPRequestHandler):
                 return []
             sql += f" AND i.id IN ({','.join(['?']*len(favs))})" if use_fts else f" AND id IN ({','.join(['?']*len(favs))})"
             params += favs
-        sql += f" ORDER BY id DESC LIMIT {limit}"
+        sql += f" ORDER BY i.id DESC LIMIT {limit}" if use_fts else f" ORDER BY id DESC LIMIT {limit}"
         rows = conn.execute(sql, params).fetchall()
         out = []
         for r in rows:
