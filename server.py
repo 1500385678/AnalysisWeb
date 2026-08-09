@@ -15,10 +15,17 @@ IMG_ROOT = os.path.join(ANALYSISWEB_HOME, 'Mobile', 'Style')
 # 旧 Mac 路径前缀(DB 里的路径是旧的,需要映射)
 OLD_IMG_ROOT = '/Users/aaron/Mac/WorkTeam/05_Space/03_Architect/Mobile'
 
-# 权限控制(2026-06-27 增加):只有本机 Mac 的 IP 可以写操作,其他电脑只读
+# 权限控制(2026-06-27 增加):只有本机 IP 可以写操作,其他电脑只读
 # 读:GET /, GET /img/*, GET /api/search, GET /api/facets, GET /api/favorites
 # 写:POST /api/favorites, POST /api/upload_search, POST /api/ai_image
-ADMIN_IPS = {'127.0.0.1', '192.168.181.136', '::1'}  # 本机 loopback + Windows LAN IP
+# 2026-08-09 P0 修复:不再硬编码 192.168.181.136(PictureWeb 时代 Windows LAN),
+# 该 IP 在 Mac mini 实际网段不存在,且 8-6 已用 _detect_lan_ip() 探测真实 LAN。
+# 现在只保留 loopback(::1 + 127.0.0.1),启动时把探测到的 LAN IP 同步并入;
+# ANALYSISWEB_ADMIN_IPS env 逗号分隔支持人工加白名单(例:团队内 10.0.0.50)。
+ADMIN_IPS = {'127.0.0.1', '::1'}  # 本机 loopback;启动横幅 _detect_lan_ip() 同步并入本机 LAN
+_env_ips = os.environ.get('ANALYSISWEB_ADMIN_IPS', '').strip()
+if _env_ips:
+    ADMIN_IPS.update(ip.strip() for ip in _env_ips.split(',') if ip.strip())
 WRITE_PATHS = {'/api/favorites', '/api/upload_search', '/api/ai_image', '/api/semantic_search', '/api/intent_search'}
 
 # 并发连接数限制(2026-06-28 调整):图片缩略图并发需求高,20 个
@@ -718,9 +725,12 @@ if __name__ == '__main__':
     print(f'AnalysisWeb 启动: http://127.0.0.1:{port}/', flush=True)
     lan_ip = _detect_lan_ip()
     if lan_ip:
+        ADMIN_IPS.add(lan_ip)  # 2026-08-09 P0:本机 LAN IP 同步并入写白名单(只本进程)
         print(f'           局域网: http://{lan_ip}:{port}/  (需同网段)', flush=True)
     else:
         print(f'           (LAN IP 探测失败,同网段访问请用 `ifconfig | grep inet` 查看)', flush=True)
+    if _env_ips:
+        print(f'           ADMIN_IPS env 追加白名单: {_env_ips}', flush=True)
     print(f'DB: {DB}', flush=True)
     print(f'IMG_ROOT: {IMG_ROOT}', flush=True)
     print(f'并发上限: {MAX_CONCURRENT} 个连接', flush=True)

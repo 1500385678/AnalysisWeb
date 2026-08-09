@@ -72,7 +72,7 @@ AnalysisWeb/
 ## 3. API 速览
 
 公开端点: `/api/search` `/api/facets` `/api/favorites` (GET)
-本机端点 (`127.0.0.1` / `192.168.181.136` / `::1`): `POST /api/favorites` `POST /api/upload_search`
+本机端点 (`127.0.0.1` / `::1` + 启动时 `_detect_lan_ip()` 探测到的本机 LAN + `ANALYSISWEB_ADMIN_IPS` env 逗号分隔): `POST /api/favorites` `POST /api/upload_search`
 
 完整列表 + 权限: `server.py:ADMIN_IPS` + README.md
 
@@ -191,3 +191,14 @@ $h = @{Authorization="Bearer $env:GH_TOKEN"}
 | P1(发现) | `_facets` 内 `conn.close()` 在 `_distinct('view_type')` 之前,导致 8-8 P1 修复后 `/api/facets` 抛 `Cannot operate on a closed database` | `conn.close()` 移到 7 个 `_distinct()` 调用之后 | curl `/api/facets` 返 9 维 + 中文值,无 `closed database` 异常 |
 
 > 本批 commit 单条,`fix(P2 行数同步 + P1 facets conn.close 顺序)`,走 `git_data_push.py` 推 GitHub + Gitee。
+
+## 13. 变更记录(夜间迭代批 5 · 2026-08-09 23:40)
+
+> 触发:Verifier 8-9 23:25 第 1 条 P0 (Row 142) — `ADMIN_IPS` 仍硬编码 PictureWeb 时代 Windows LAN IP `192.168.181.136`,且没把 8-6 已就位的 `_detect_lan_ip()` 同步并入 ADMIN_IPS,导致本机 LAN 自访 POST /api/favorites 仍 403。
+
+| 优先级 | 问题 | 修复 | 证据 |
+|---|---|---|---|
+| P0 | `server.py:21` `ADMIN_IPS = {'127.0.0.1', '192.168.181.136', '::1'}` 硬编码 Windows LAN IP,Mac mini 网段不存在,本机 POST 写操作 403 | 改为 `{'127.0.0.1', '::1'}` 起步;启动时 `_detect_lan_ip()` 拿到的本机 LAN `ADMIN_IPS.add(lan_ip)` 同步并入;新增 `ANALYSISWEB_ADMIN_IPS` env 逗号分隔支持人工白名单(团队内 10.0.0.50 等);AGENTS.md §3 "本机端点" 同步更新 | `grep -n 192.168.181.136 server.py AGENTS.md` → server.py 注释 1 处(变更记录引用)+ AGENTS.md 变更记录 2 处(历史事件),正文/代码 0 命中 |
+| P1 | `AGENTS.md:75` 仍写 `本机端点 (127.0.0.1 / 192.168.181.136 / ::1)`,误导 agent 与用户 | 改成 `127.0.0.1 / ::1 + 启动时 _detect_lan_ip() 探测到的本机 LAN + ANALYSISWEB_ADMIN_IPS env 逗号分隔` | grep 无正文命中 |
+
+> 本批 commit 单条,`fix(P0 R142 ADMIN_IPS 硬编码 + P1 AGENTS.md 同步)`,走 `git_data_push.py` 推 GitHub + Gitee。
