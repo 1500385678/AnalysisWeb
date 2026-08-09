@@ -5,6 +5,7 @@
                                               # 行为: 删旧 DB,重建空表,只插文件元数据(无标签)
   python scripts/build_db.py --incremental   # 增量模式: 保留旧 DB,只插新文件,已存在跳过
   python scripts/build_db.py --keep          # 同 --incremental (别名,语义更清晰)
+  python scripts/build_db.py --force         # 强制重建(自动备份老 DB 到 .bak.YYYYMMDD-HHMMSS)
   ANALYSISWEB_HOME=/path python scripts/build_db.py
 
 ⚠️ 默认模式会清空所有 9 维标签(AnalysisDb.db 是 gitignore 私有数据,build_db 不打标):
@@ -18,34 +19,58 @@ import sys
 import sqlite3
 import hashlib
 import argparse
+import shutil
 from datetime import datetime
 
 # 1. 解析参数
 parser = argparse.ArgumentParser(description='AnalysisWeb build_db · 扫 IMG_ROOT 建库')
 parser.add_argument('--incremental', '--keep', dest='incremental', action='store_true',
                     help='增量模式: 保留旧 DB,按 file_hash 跳过已存在文件,新文件追加')
+# 2026-08-10 P2 修复(R86):默认 REBUILD 静默删老 DB 太危险(LLM 打标结果归零)
+# 改成:默认 REBUILD 但先备份到 .bak.YYYYMMDD-HHMMSS;--force 用于 cron 自动化时确认不备份
+parser.add_argument('--force', action='store_true',
+                    help='强制重建(不备份老 DB,直接删;仅 cron / 自动化用)')
 args = parser.parse_args()
 INCREMENTAL = args.incremental
+FORCE = args.force
 
 # 2. 解析路径
-ANALYSISWEB_HOME = os.environ.get(
-    'ANALYSISWEB_HOME',
-    r'D:\Mac\Mac\Mac\workteam\05_space\03_architect\Attack\03-Analysis'
-)
+# 2026-08-10 P2 修复:同 _push_v100.py:25 一样的 Mac-fatal 教训,
+# ANALYSISWEB_HOME 缺 env 不能再回退到 D:\ Windows 路径;改成 os.path.dirname 推断
+# AGENTS.md §1:ANALYSISWEB_HOME 是「图片根父目录」,即 Attack/03-Analysis/ 根
+# (因 Mobile/ 是其子目录,Style/ 是 Mobile/ 的子目录)
+# 脚本位于 .../Attack/03-Analysis/_ArchiAttackAnalysisLib/AnalysisWeb/scripts/build_db.py
+# dirname 4 次 = .../Attack/03-Analysis/
+ANALYSISWEB_HOME = os.environ.get('ANALYSISWEB_HOME')
+if not ANALYSISWEB_HOME:
+    ANALYSISWEB_HOME = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+# Mac 上仍拿到 D:\ 路径 → 立即 fail,引导用户 export ANALYSISWEB_HOME
+if sys.platform == 'darwin' and ANALYSISWEB_HOME.startswith('D:'):
+    print('[build_db] ❌ ANALYSISWEB_HOME 是 Windows 路径,在 Mac 上跑不动', file=sys.stderr)
+    print('   请:export ANALYSISWEB_HOME=... (你的 Attack/03-Analysis 根目录绝对路径)', file=sys.stderr)
+    sys.exit(1)
 IMG_ROOT = os.path.normpath(os.path.join(ANALYSISWEB_HOME, 'Mobile', 'Style'))
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '_AnalysisDb', 'AnalysisDb.db')
 
 # 3. 准备 DB
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-print(f'[build_db] mode      = {"INCREMENTAL" if INCREMENTAL else "REBUILD (会清空旧 DB)"}')
+print(f'[build_db] mode      = {"INCREMENTAL" if INCREMENTAL else ("REBUILD --force (无备份)" if FORCE else "REBUILD (自动备份老 DB)")}')
 print(f'[build_db] IMG_ROOT  = {IMG_ROOT}')
 print(f'[build_db] DB_PATH   = {DB_PATH}')
 
 is_new_db = not os.path.exists(DB_PATH)
 if not INCREMENTAL and not is_new_db:
-    print(f'[build_db] ⚠️  默认模式: 删除旧 DB (所有 9 维标签会丢失)')
-    print(f'[build_db] 💡 若要保留标签: 改用 --incremental')
-    os.remove(DB_PATH)
+    if FORCE:
+        print(f'[build_db] ⚠️  --force 模式: 直接删老 DB,不备份 (所有 9 维标签会丢失)')
+        os.remove(DB_PATH)
+    else:
+        # 2026-08-10 P2 修复(R86):自动备份老 DB → .bak.YYYYMMDD-HHMMSS,避免 LLM 打标结果归零
+        bak_name = f'AnalysisDb.db.bak.{datetime.now().strftime("%Y%m%d-%H%M%S")}'
+        bak_path = os.path.join(os.path.dirname(DB_PATH), bak_name)
+        shutil.copy2(DB_PATH, bak_path)
+        print(f'[build_db] 🛡️  老 DB 已备份 → {bak_path}')
+        print(f'[build_db] 🗑️  删老 DB 重建(9 维标签会丢,需重跑 tag_images.py)')
+        os.remove(DB_PATH)
 elif INCREMENTAL and not is_new_db:
     print(f'[build_db] 增量模式: 保留旧 DB,跳过已存在 file_hash')
 else:

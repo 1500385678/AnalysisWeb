@@ -39,9 +39,9 @@ _(暂无 — AnalysisWeb 是单仓单服务结构)_
 
 - `AGENTS.md` · 项目真值源(必读)
 - `README.md` · 用户档
-- `server.py` · 后端(单文件,~729 行)
-- `index.html` · 搜索主页(单文件,~1218 行)
-- `scripts/` · 推送 / 打标 / 巡检工具
+- `server.py` · 后端(单文件,~811 行 · 8-10 P0/P1 后)
+- `index.html` · 搜索主页(单文件,~1320 行 · 8-10 P0 XSS 改 createElement 后)
+- `scripts/` · 推送 / 打标 / 巡检工具(17 个 .py · 8-10 P2 build_db 备份后)
 - `thumbs/` · 缩略图缓存(运行时,gitignore)
 - `_AnalysisDb/AnalysisDb.db` · SQLite 数据库(运行时,gitignore)
 
@@ -52,6 +52,7 @@ _(暂无 — AnalysisWeb 是单仓单服务结构)_
 > - 2026-07-24 · 从 PictureWeb 拆出 v1.0.0 独立运营 · 端口 8081 → 8082
 > - 2026-08-02 · frontmatter 调整
 > - 2026-08-08 · Verifier P2 修复(方案A):Defense 死链 wikilink 整段删,正文改写为 AnalysisWeb 当前 v1.0.0 + 8082 + 9 维标签,真值源走 AGENTS.md · 排长
+> - 2026-08-10 · 批 3 P2 修复(R146):server.py 729 → 811 / index.html 1218 → 1320 / scripts/ 8 → 17 个 .py 行数同步
 
 ---
 
@@ -118,8 +119,8 @@ python3 -X utf8 server.py
 
 ```
 AnalysisWeb/
-├── server.py             # 后端(单文件,~729 行)
-├── index.html            # 搜索主页(单文件,~1218 行)
+├── server.py             # 后端(单文件,~811 行 · 8-10 P0/P1 后)
+├── index.html            # 搜索主页(单文件,~1320 行 · 8-10 P0 XSS 改 createElement 后)
 ├── start.bat / start.sh  # 启动脚本(均带 -X utf8 · 跨平台镜像)
 ├── start_hidden.vbs      # 无窗口启动(Windows)
 ├── libraryControl.md     # 本文件 · AnalysisWeb 索引员/排长
@@ -134,15 +135,25 @@ AnalysisWeb/
 ├── docs/
 │   ├── 3agent-workflow.md
 │   └── phase6-design.md
-├── scripts/
-│   ├── build_db.py          # 扫 IMG_ROOT → 建库
-│   ├── git_data_push.py     # Git Data API 推送
-│   ├── _push_v100.py        # GitHub 首发(Contents API)
-│   ├── _push_gitee_v100.py  # Gitee 首发(Contents API)
-│   ├── _push_github_api.py  # GitHub API 通用推 ref 工具
-│   ├── _push_macos.py       # macOS 包装
-│   ├── auto_release.py
-│   └── tag_images.py        # LLM 打标
+├── scripts/              # 17 个 .py · ls -la 实际顺序
+│   ├── _check_autofix.py       # (从 PictureWeb 继承,模板用)
+│   ├── _demo_e2e.py            # (从 PictureWeb 继承,模板用)
+│   ├── _push_gitee_v100.py     # Gitee 首发(Contents API)
+│   ├── _push_github_api.py     # GitHub API 通用推 ref 工具
+│   ├── _push_macos.py          # macOS 包装(从 origin URL 读 token + 改 ROOT)
+│   ├── _push_v100.py           # GitHub 首发(Contents API)
+│   ├── auto_dispatch.py        # (从 PictureWeb 继承,模板用)
+│   ├── auto_fixer_architect.py # (从 PictureWeb 继承,模板用)
+│   ├── auto_release.py         # release + bump + tag
+│   ├── auto_tester.py          # (从 PictureWeb 继承,模板用)
+│   ├── batch_push.py           # (从 PictureWeb 继承,模板用)
+│   ├── build_db.py             # 扫 IMG_ROOT → 建库(8-10 P2 加 --force + 备份)
+│   ├── daily_pipeline.py       # (从 PictureWeb 继承,模板用)
+│   ├── debug_tree.py           # (从 PictureWeb 继承,模板用)
+│   ├── feedback.py             # (从 PictureWeb 继承,模板用)
+│   ├── git_data_push.py        # Git Data API 推送
+│   ├── tag_images.py           # LLM 打标 9 维
+│   └── __pycache__/            # (运行时)
 └── tests/
     └── smoke.py
 ```

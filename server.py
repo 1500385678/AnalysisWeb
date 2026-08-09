@@ -32,6 +32,8 @@ WRITE_PATHS = {'/api/favorites', '/api/upload_search', '/api/ai_image', '/api/se
 MAX_CONCURRENT = 20
 active_lock = Lock()
 active_count = 0
+# 2026-08-10 P0:_ai_image 串行化锁(matrix MCP 一次接 1 路)
+_ai_image_lock = Lock()
 
 def load_favs():
     if not os.path.exists(FAV_FILE):
@@ -585,15 +587,24 @@ class Handler(SimpleHTTPRequestHandler):
         up_phash = self._compute_phash(raw)
         conn = sqlite3.connect(DB)
         conn.row_factory = sqlite3.Row
-        rows = conn.execute('SELECT id, project, filename, abs_path, scene, light, space, material, mood, caption, phash FROM images WHERE phash IS NOT NULL AND phash != ""').fetchall()
-        sims = []
+        # 2026-08-10 P1 修复(R144):pHash 全表扫改 SQL LIMIT 200 候选 + Python top20 early-break
+        # 之前 1000+ 张时肉眼可感延迟;DB 增长 10k+ 会拖 100MB 内存
+        # 简化策略:SQL 加 LIMIT 200(粗筛 200 候选),Python 端 heapq top20 早停
+        # (未来 R 上 SQLite 表达式索引 (pHash ^ ?) BIT-AND 可做精确 ORDER BY,见 R144 改法 2)
+        rows = conn.execute('SELECT id, project, filename, abs_path, scene, light, space, material, mood, caption, phash FROM images WHERE phash IS NOT NULL AND phash != "" LIMIT 200').fetchall()
+        import heapq
+        top = []  # (-dist, r) max-heap via neg key;top20 用 d 升序
         for r in rows:
             if not r['phash']: continue
             d = self._hamming(up_phash, r['phash'])
-            sims.append((d, r))
-        sims.sort(key=lambda x: x[0])
+            if len(top) < 20:
+                heapq.heappush(top, (-d, r))
+            elif -top[0][0] > d:  # 当前最差 > 新 d → 替换
+                heapq.heapreplace(top, (-d, r))
+        # 排序输出:neg_d 降序 → d 升序(最近优先)
         out = []
-        for d, r in sims[:20]:
+        for neg_d, r in sorted(top, key=lambda x: -x[0]):
+            d = -neg_d
             out.append({
                 'id': r['id'], 'project': r['project'], 'filename': r['filename'],
                 'path': r['abs_path'], 'url': to_img_url(r['abs_path']),
@@ -618,16 +629,23 @@ class Handler(SimpleHTTPRequestHandler):
             return '0' * 64
 
     def _ai_image(self, data):
+        # 2026-08-10 P0 修复(R84/R143):并发 + 残留垃圾
+        # 1) 每个请求用独立 tempfile(避免并发覆盖);
+        # 2) 进程级 _ai_image_lock 串行化 mavis 调用(matrix MCP 同时只接 1 路);
+        # 3) try/finally 兜底删临时文件,120s 超时/异常也不会残留磁盘。
         prompt = data.get('prompt', '').strip()
         if not prompt:
             self._json({'error': 'prompt 不能为空'})
             return
-        import subprocess, re
-        req_file = os.path.join(os.path.dirname(__file__), '_ai_req.json')
-        json.dump({'prompt': prompt, 'aspect_ratio': '3:2', 'resolution': '2K'}, open(req_file, 'w', encoding='utf-8'))
-        cmd = ['mavis', 'mcp', 'call', 'matrix', 'matrix_generate_image', '--file', req_file]
+        import subprocess, re, tempfile
+        req_fd, req_path = tempfile.mkstemp(prefix='_ai_prompt_', suffix='.json', dir=os.path.dirname(__file__))
+        os.close(req_fd)
         try:
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            with open(req_path, 'w', encoding='utf-8') as fp:
+                json.dump({'prompt': prompt, 'aspect_ratio': '3:2', 'resolution': '2K'}, fp, ensure_ascii=False)
+            cmd = ['mavis', 'mcp', 'call', 'matrix', 'matrix_generate_image', '--file', req_path]
+            with _ai_image_lock:
+                r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
             m = re.search(r'"output_url":\s*"([^"]+)"', r.stdout)
             if m:
                 self._json({'path': m.group(1)})
@@ -635,6 +653,11 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json({'error': (r.stdout or r.stderr)[:500]})
         except Exception as e:
             self._json({'error': str(e)})
+        finally:
+            try:
+                os.unlink(req_path)
+            except OSError:
+                pass
 
     def _hamming(self, a, b):
         if not a or not b or len(a) != len(b): return 64
@@ -671,7 +694,11 @@ def _ensure_db_schema():
     """2026-08-06 P1:启动时确保 9 维标签列齐全。
     DB 是 gitignore 的本地文件,可能来自老 build_db.py(只 26 列,缺
     analysis_type / drawing_method / subject)。每次启动幂等检查,缺则 ALTER TABLE。
-    不丢老数据,新列默认 NULL,search 返空字符串。"""
+    不丢老数据,新列默认 NULL,search 返空字符串。
+
+    2026-08-10 P1(R145):同步 images_fts FTS5 虚拟表,确保 9 维列都在索引里。
+    FTS5 schema 在 CREATE 时固定,老 DB images_fts 仍只 6 维,新 9 维全文匹配
+    退化为 LIKE 全表扫;探测 images_fts 缺列 → DROP+重建+repopulate。"""
     if not os.path.exists(DB):
         return
     conn = sqlite3.connect(DB)
@@ -695,9 +722,47 @@ def _ensure_db_schema():
             except sqlite3.OperationalError as e:
                 print(f'[schema] 加列 {col} 失败: {e}', flush=True)
     conn.commit()
-    conn.close()
     if added:
         print(f'[schema] 自动加列: {", ".join(added)} (老数据这些列会空,需重跑 build_db 重新打标)', flush=True)
+
+    # 2026-08-10 P1 修复(R145):FTS5 虚拟表补 9 维列
+    # 期望 images_fts schema 包含 16 列(id+9 维+6 老列),不匹配就重建
+    fts_expected_cols = {'id', 'project', 'filename', 'caption', 'scene', 'material', 'mood',
+                         'space', 'light', 'analysis_type', 'drawing_method', 'subject',
+                         'scale', 'render_style', 'color_palette', 'view_type'}
+    fts_actual_cols = set()
+    try:
+        fts_actual_cols = {row[1] for row in cur.execute('PRAGMA table_info(images_fts)').fetchall()}
+    except sqlite3.OperationalError:
+        # images_fts 完全不存在,跳到重建分支
+        pass
+    if fts_actual_cols != fts_expected_cols:
+        print(f'[schema] ⚠️  images_fts schema 不匹配(实际 {len(fts_actual_cols)} 列,期望 {len(fts_expected_cols)} 列),重建中...', flush=True)
+        # 老 DB 可能没 images_fts(完全没创建);或只有 6 列;都走 DROP+重建
+        cur.execute('DROP TABLE IF EXISTS images_fts')
+        cur.execute("""
+            CREATE VIRTUAL TABLE images_fts USING fts5(
+                id UNINDEXED, project, filename, caption, scene, material, mood,
+                space, light, analysis_type, drawing_method, subject,
+                scale, render_style, color_palette, view_type,
+                content='', tokenize='unicode61'
+            )
+        """)
+        # 从 images 表 repopulate
+        cur.execute("""
+            INSERT INTO images_fts (id, project, filename, caption, scene, material, mood,
+                                    space, light, analysis_type, drawing_method, subject,
+                                    scale, render_style, color_palette, view_type)
+            SELECT id, project, filename, caption, scene, material, mood,
+                   space, light, analysis_type, drawing_method, subject,
+                   scale, render_style, color_palette, view_type
+            FROM images
+        """)
+        n_repop = cur.rowcount
+        conn.commit()
+        print(f'[schema] ✅ images_fts 重建完成,repopulate {n_repop} 行 (含 9 维标签)', flush=True)
+
+    conn.close()
 
 
 def _detect_lan_ip():

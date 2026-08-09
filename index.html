@@ -995,27 +995,74 @@ async function searchIntent() {
 
   results.innerHTML = '';
   data.items.forEach(item => {
+    // 2026-08-10 P0 修复(R83):改 createElement + dataset 传值,根治 XSS 注入
+    // 之前 onclick= 字符串拼接 item 字段(item.caption / project / url),caption 含 " 或 '
+    // 或 filename 含 <script> 直接破 HTML;改用 dataset.item + addEventListener,杜绝字符串拼接
     const card = document.createElement('div');
     card.className = 'intent-card';
-    const reasonsHtml = (item.reasons || []).map(re =>
-      `<span class="intent-reason-chip">${re}</span>`
-    ).join('');
-    card.innerHTML = `
-      <div class="intent-card-img" onclick="openModal({url:'${item.url}',filename:'${item.filename}',project:'${item.project}',caption:'${(item.caption||'').replace(/'/g, "\\'")}',scene:'${item.scene||''}',light:'${item.light||''}',material:'${item.material||''}',mood:'${item.mood||''}',space:'',path:'${item.path||''}',id:${item.id}})">
-        <img src="${item.url}" onerror="this.style.opacity=0.3">
-      </div>
-      <div class="intent-card-body">
-        <div class="intent-card-rank">匹配 #${item.rank} · ${item.project}</div>
-        <div class="intent-card-title">${item.caption || item.filename}</div>
-        <div class="intent-card-caption"></div>
-        <div class="intent-reasons">${reasonsHtml}</div>
-        <div class="intent-card-actions">
-          <button class="btn-variant" onclick="generateVariant(${item.id}, this)">✨ 生图变体(MCP)</button>
-          <button class="btn-variant" onclick="openModal({url:'${item.url}',filename:'${item.filename}',project:'${item.project}',caption:'${(item.caption||'').replace(/'/g, "\\'")}',scene:'${item.scene||''}',light:'${item.light||''}',material:'${item.material||''}',mood:'${item.mood||''}',space:'',path:'${item.path||''}',id:${item.id}})">查看大图</button>
-        </div>
-        <div class="intent-variant-result" id="variant-${item.id}"></div>
-      </div>
-    `;
+    const safeItem = {
+      url: item.url, filename: item.filename, project: item.project,
+      caption: item.caption, scene: item.scene, light: item.light,
+      material: item.material, mood: item.mood, path: item.path, id: item.id,
+    };
+    card.dataset.item = JSON.stringify(safeItem);
+
+    const imgWrap = document.createElement('div');
+    imgWrap.className = 'intent-card-img';
+    imgWrap.addEventListener('click', () => openModal(JSON.parse(card.dataset.item)));
+    const img = document.createElement('img');
+    img.src = item.url;
+    img.addEventListener('error', () => { img.style.opacity = 0.3; });
+    imgWrap.appendChild(img);
+
+    const body = document.createElement('div');
+    body.className = 'intent-card-body';
+
+    const rank = document.createElement('div');
+    rank.className = 'intent-card-rank';
+    rank.textContent = `匹配 #${item.rank} · ${item.project}`;
+    body.appendChild(rank);
+
+    const title = document.createElement('div');
+    title.className = 'intent-card-title';
+    title.textContent = item.caption || item.filename || '';
+    body.appendChild(title);
+
+    const capDiv = document.createElement('div');
+    capDiv.className = 'intent-card-caption';
+    body.appendChild(capDiv);
+
+    const reasons = document.createElement('div');
+    reasons.className = 'intent-reasons';
+    (item.reasons || []).forEach(re => {
+      const chip = document.createElement('span');
+      chip.className = 'intent-reason-chip';
+      chip.textContent = re;
+      reasons.appendChild(chip);
+    });
+    body.appendChild(reasons);
+
+    const actions = document.createElement('div');
+    actions.className = 'intent-card-actions';
+    const vBtn = document.createElement('button');
+    vBtn.className = 'btn-variant';
+    vBtn.textContent = '✨ 生图变体(MCP)';
+    vBtn.addEventListener('click', e => generateVariant(item.id, vBtn));
+    actions.appendChild(vBtn);
+    const mBtn = document.createElement('button');
+    mBtn.className = 'btn-variant';
+    mBtn.textContent = '查看大图';
+    mBtn.addEventListener('click', () => openModal(JSON.parse(card.dataset.item)));
+    actions.appendChild(mBtn);
+    body.appendChild(actions);
+
+    const variant = document.createElement('div');
+    variant.className = 'intent-variant-result';
+    variant.id = `variant-${item.id}`;
+    body.appendChild(variant);
+
+    card.appendChild(imgWrap);
+    card.appendChild(body);
     results.appendChild(card);
   });
 }
@@ -1118,41 +1165,92 @@ function renderCards(items) {
   }
   grid.innerHTML = '';
   items.forEach(item => {
+    // 2026-08-10 P0 修复(R83):renderCards + openModal 全改 createElement + textContent,
+    // 杜绝 item.filename / project / scene / path 含 " ' < > 时破 innerHTML 触发 XSS;
+    // 之前 line 1180-1184 / 1195-1201 模板字符串拼接全是攻击面。
     const card = document.createElement('div');
     card.className = 'card';
-    const tagsHtml = (item.scene||'').split(';').map(t=>t.trim()).filter(Boolean).slice(0,3).map(t=>`<span class="tag">${t}</span>`).join('');
-    const simHtml = item.similarity !== undefined ? `<div class="sim-badge">相似 ${item.similarity}%</div>` : '';
-    // 2026-08-08 Verifier P1 修复:viewHtml 直接用 DB 中文值(鸟瞰/透视/剖切/轴测),
-    // 不再三元硬编码 bird-eye/eye-level/other(那会跟 DB DISTINCT 错位导致 badge 永远不出现)
-    const viewHtml = item.view_type ? `<div class="view-badge">${item.view_type}</div>` : '';
-    const favActive = favs.includes(item.id) ? 'active' : '';
-    card.innerHTML = `
-      ${simHtml}
-      ${viewHtml}
-      <button class="fav-btn ${favActive}" data-id="${item.id}" onclick="event.stopPropagation(); toggleFav(${item.id})">${favs.includes(item.id) ? '★' : '☆'}</button>
-      <img src="${item.url}" onerror="this.style.opacity=0.3">
-      <div class="card-body">
-        <div class="card-title">${item.filename}</div>
-        <div>${item.project}</div>
-        <div class="tags">${tagsHtml}</div>
-      </div>
-    `;
-    card.onclick = () => openModal(item);
+    if (item.similarity !== undefined) {
+      const sim = document.createElement('div');
+      sim.className = 'sim-badge';
+      sim.textContent = `相似 ${item.similarity}%`;
+      card.appendChild(sim);
+    }
+    // 2026-08-08 Verifier P1 修复:view_badge 直接用 DB 中文值(鸟瞰/透视/剖切/轴测),
+    // 不再三元硬编码 bird-eye/eye-level/other
+    if (item.view_type) {
+      const vb = document.createElement('div');
+      vb.className = 'view-badge';
+      vb.textContent = item.view_type;
+      card.appendChild(vb);
+    }
+    const favBtn = document.createElement('button');
+    favBtn.className = 'fav-btn ' + (favs.includes(item.id) ? 'active' : '');
+    favBtn.dataset.id = item.id;
+    favBtn.textContent = favs.includes(item.id) ? '★' : '☆';
+    favBtn.addEventListener('click', e => { e.stopPropagation(); toggleFav(item.id); });
+    card.appendChild(favBtn);
+    const img = document.createElement('img');
+    img.src = item.url;
+    img.addEventListener('error', () => { img.style.opacity = 0.3; });
+    card.appendChild(img);
+    const body = document.createElement('div');
+    body.className = 'card-body';
+    const title = document.createElement('div');
+    title.className = 'card-title';
+    title.textContent = item.filename || '';
+    body.appendChild(title);
+    const proj = document.createElement('div');
+    proj.textContent = item.project || '';
+    body.appendChild(proj);
+    const tags = document.createElement('div');
+    tags.className = 'tags';
+    (item.scene || '').split(';').map(t => t.trim()).filter(Boolean).slice(0, 3).forEach(t => {
+      const s = document.createElement('span');
+      s.className = 'tag';
+      s.textContent = t;
+      tags.appendChild(s);
+    });
+    body.appendChild(tags);
+    card.appendChild(body);
+    card.addEventListener('click', () => openModal(item));
     grid.appendChild(card);
   });
 }
 
 function openModal(item) {
   document.getElementById('modal-img').src = item.url;
-  const favHtml = `<button class="fav-btn ${favs.includes(item.id)?'active':''}" style="position:static;width:auto;padding:6px 14px;border-radius:4px;margin-top:8px" onclick="toggleFav(${item.id}); this.textContent='${favs.includes(item.id)?'★ 取消收藏':'☆ 收藏'}'">${favs.includes(item.id)?'★ 取消收藏':'☆ 收藏'}</button>`;
-  document.getElementById('modal-info').innerHTML = `
-    <div style="font-size:18px;color:#fff;margin-bottom:8px">${item.filename}</div>
-    <div>项目: ${item.project}</div>
-    <div>场景: ${item.scene||'-'} | 光线: ${item.light||'-'} | 氛围: ${item.mood||'-'}</div>
-    <div>空间: ${item.space||'-'} | 材料: ${item.material||'-'}</div>
-    <div style="color:#888;margin-top:6px">路径: ${item.path}</div>
-    ${favHtml}
-  `;
+  const info = document.getElementById('modal-info');
+  info.innerHTML = '';  // 清空再 appendChild,所有文本走 textContent
+  const fn = document.createElement('div');
+  fn.style.cssText = 'font-size:18px;color:#fff;margin-bottom:8px';
+  fn.textContent = item.filename || '';
+  info.appendChild(fn);
+  const proj = document.createElement('div');
+  proj.textContent = '项目: ' + (item.project || '-');
+  info.appendChild(proj);
+  const ctx1 = document.createElement('div');
+  ctx1.textContent = `场景: ${item.scene||'-'} | 光线: ${item.light||'-'} | 氛围: ${item.mood||'-'}`;
+  info.appendChild(ctx1);
+  const ctx2 = document.createElement('div');
+  ctx2.textContent = `空间: ${item.space||'-'} | 材料: ${item.material||'-'}`;
+  info.appendChild(ctx2);
+  const path = document.createElement('div');
+  path.style.cssText = 'color:#888;margin-top:6px';
+  path.textContent = '路径: ' + (item.path || '');
+  info.appendChild(path);
+  const isFav = favs.includes(item.id);
+  const favBtn = document.createElement('button');
+  favBtn.className = 'fav-btn ' + (isFav ? 'active' : '');
+  favBtn.style.cssText = 'position:static;width:auto;padding:6px 14px;border-radius:4px;margin-top:8px';
+  favBtn.textContent = isFav ? '★ 取消收藏' : '☆ 收藏';
+  favBtn.addEventListener('click', () => {
+    toggleFav(item.id);
+    const nowFav = favs.includes(item.id);
+    favBtn.textContent = nowFav ? '★ 取消收藏' : '☆ 收藏';
+    favBtn.className = 'fav-btn ' + (nowFav ? 'active' : '');
+  });
+  info.appendChild(favBtn);
   document.getElementById('modal').classList.add('open');
 }
 

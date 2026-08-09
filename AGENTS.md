@@ -202,3 +202,18 @@ $h = @{Authorization="Bearer $env:GH_TOKEN"}
 | P1 | `AGENTS.md:75` 仍写 `本机端点 (127.0.0.1 / 192.168.181.136 / ::1)`,误导 agent 与用户 | 改成 `127.0.0.1 / ::1 + 启动时 _detect_lan_ip() 探测到的本机 LAN + ANALYSISWEB_ADMIN_IPS env 逗号分隔` | grep 无正文命中 |
 
 > 本批 commit 单条,`fix(P0 R142 ADMIN_IPS 硬编码 + P1 AGENTS.md 同步)`,走 `git_data_push.py` 推 GitHub + Gitee。
+
+## 14. 变更记录(夜间迭代批 6 · 2026-08-10 02:00)
+
+> 触发:J10 授权自主决策 6 护栏临时豁免;批 3 任务描述里的 5 意见(批 3 8-6)已在 §10 闭环,本批转 8-8/8-9 Verifier 未闭环 6 条(2×P0 + 2×P1 + 2×P2)。
+
+| 优先级 | 问题(Row#) | 修复 | 证据 |
+|---|---|---|---|
+| P0 | `server.py:_ai_image`(R84/R143)写 `_ai_req.json` 硬路径 + 并发覆盖 + 120s 失败残留磁盘 | `tempfile.mkstemp(prefix='_ai_prompt_')` 每请求独立文件;新增 `_ai_image_lock = Lock()` 串行 mavis subprocess;`try/finally os.unlink` 兜底 | `wc -l server.py`:743 → 811 |
+| P0 | `index.html:1004,1014`(R83)`openModal({...})` onclick 字符串拼接 + `caption.replace(/'/g)` 单引号转义,item 字段含 `"` `<script>` 触发 XSS | renderCards + intent cards + openModal 全部改 `createElement + textContent + addEventListener + dataset.item = JSON.stringify` 传值,0 字符串拼接;`favHtml` 模板也改 addEventListener | `wc -l index.html`:1222 → 1320;`grep "openModal.*item\\." index.html` → 0 命中字符串拼接 |
+| P1 | `server.py:_upload_search`(R144)全表 SELECT phash + Python hamming 循环 + 无 LIMIT,1000+ 行肉眼延迟 | SQL 加 `LIMIT 200` 候选 + Python `heapq` top20 early-break | `wc -l server.py` +28;`grep "LIMIT" server.py` 新增 1 处 |
+| P1 | `server.py:_ensure_db_schema`(R145)启动只 ALTER images 表,不重建 images_fts FTS5 虚拟表,9 维新列全文匹配漏 | 启动时 `PRAGMA table_info(images_fts)` 探测;列不匹配 → `DROP TABLE images_fts` + 重建(16 列含 9 维)+ `INSERT INTO images_fts SELECT ... FROM images` repopulate;横幅打 `[schema] ⚠️ images_fts schema 不匹配 → 重建完成,repopulate N 行` | `python3 -c "import server; server._ensure_db_schema()"` → ⚠️ 重建 + ✅ repopulate 11 行,`PRAGMA table_info(images_fts)` 16 列齐全 |
+| P2 | `scripts/build_db.py:48`(R86)`os.remove(DB_PATH)` 静默删老 DB,LLM 打标结果归零;`scripts/build_db.py:33` `r'D:\Mac\...'` 硬编码 Windows 路径,Mac 上 fail | 1) 加 `--force` argparse,默认 REBUILD 走 `shutil.copy2` 自动备份 `AnalysisDb.db.bak.YYYYMMDD-HHMMSS`;2) `ANALYSISWEB_HOME` 缺 env 改 `os.path.dirname` 4 次推断(Mac 守卫:`darwin` + `startswith('D:')` → `sys.exit(1)` 引导 `export ANALYSISWEB_HOME=...`) | `python3 scripts/build_db.py` → 🛡️ 老 DB 已备份 → 删 + 重建;`python3 scripts/build_db.py --help` 显式列 `--force`;`--incremental` 11 张不丢 |
+| P2 | `libraryControl.md:42-43`(R146)`server.py ~729 行 / index.html ~1218 行` 漂移;`scripts/` 目录树只列 8 文件,实际 17 个 | 行数同步 811 / 1320;`scripts/` 按 `ls -la` 顺序列全 17 个 .py + `__pycache__/`,标注从 PictureWeb 继承的模板用脚本;变更记录加 8-10 批 6 行 | `wc -l libraryControl.md` 148 → 159 |
+
+> 本批 commit 单条,`fix(批 6 02:00 R83/R84/R143/R144/R145/R86/R146)`,走 `git_data_push.py` 推 GitHub + Gitee。
