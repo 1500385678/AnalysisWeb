@@ -16,25 +16,27 @@ PictureWeb 收效果图 / 参考图,AnalysisWeb 专门收**方案分析图**(轴
 
 | 项 | 值 |
 |---|---|
-| 工作目录 | `D:\Mac\Mac\Mac\workteam\05_space\03_architect\Attack\03-Analysis\_ArchiAttackAnalysisLib\AnalysisWeb\` |
+| 工作目录 | `$ANALYSISWEB_HOME/_ArchiAttackAnalysisLib/AnalysisWeb/`(Mac: `/Users/aaron/Mac/WorkTeam/05_Space/03_Architect/Attack/03-Analysis/_ArchiAttackAnalysisLib/AnalysisWeb/`;Windows: `D:\Mac\Mac\Mac\workteam\05_space\03_architect\Attack\03-Analysis\_ArchiAttackAnalysisLib\AnalysisWeb\`) |
 | 远端仓库 | **GitHub** `https://github.com/1500385678/AnalysisWeb` (public, 2026-07-24 v1.0.0) · **Gitee 镜像** `https://gitee.com/architectzy/AnalysisWeb` (public, 2026-07-25 v1.0.0,互不依赖) |
 | 远端主分支 | `main` |
 | 当前版本 | `v1.0.0` (`__version__.py`) |
 | 启动命令 | `python -X utf8 server.py` (Windows) 或双击 `start.bat` |
 | 默认 URL | http://127.0.0.1:8082/ |
 | 数据库 | `_AnalysisDb/AnalysisDb.db` (本项目私有,gitignore) |
-| 图片根 | `D:\Mac\Mac\Mac\workteam\05_space\03_architect\Attack\03-Analysis\Mobile` |
+| 图片根 | `$ANALYSISWEB_HOME/Mobile/`(Mac: `/Users/aaron/Mac/WorkTeam/05_Space/03_Architect/Attack/03-Analysis/Mobile`;Windows: `D:\Mac\Mac\Mac\workteam\05_space\03_architect\Attack\03-Analysis\Mobile`) |
 | 缩略图缓存 | `thumbs/` (gitignore) |
 | 日志 | `logs/` (gitignore) |
 | 兄弟项目 | PictureWeb(8081) 收效果图 / 参考图,共用 `AnalysisWeb` 检索壳 |
-| 环境变量 | `ANALYSISWEB_HOME`(图片根父目录)、`ANALYSISWEB_TEST_PORT`(端口覆盖)、`ANALYSISWEB_EMBEDDING_DIR`(AI 语义搜 embedding.py 目录,缺则 501) |
+| 环境变量 | `ANALYSISWEB_HOME`(图片根父目录)、`ANALYSISWEB_TEST_PORT`(端口覆盖)、`ANALYSISWEB_EMBEDDING_DIR`(AI 语义搜 embedding.py 目录,缺则 501)、`ANALYSISWEB_ADMIN_IPS`(逗号分隔人工白名单,批 5 加) |
+
+> **平台路径**:路径写法以本机实际为准,本表是 AGENTS.md 文档值,真值看 `ANALYSISWEB_HOME` 环境变量;Mac 跑必须 `export ANALYSISWEB_HOME=...`(见 §7 坑)
 
 ## 2. 目录结构
 
 ```
 AnalysisWeb/
-├── server.py             # 后端(单文件,736 行 · 2026-08-09 P2 行数同步)
-├── index.html            # 搜索主页(CSS+JS 内嵌,苹果风浅色,1222 行)
+├── server.py             # 后端(单文件,847 行 · 2026-08-11 P2 行数同步)
+├── index.html            # 搜索主页(CSS+JS 内嵌,苹果风浅色,1352 行)
 ├── start.bat / start.sh  # 启动脚本(均带 -X utf8 · 跨平台镜像)
 ├── start_hidden.vbs      # 无窗口启动(Windows)
 ├── libraryControl.md     # Obsidian control 文件(排长索引员 · 当前 v1.0.0/8082/9 维 · 2026-08-08 方案A 重写)
@@ -73,6 +75,11 @@ AnalysisWeb/
 
 公开端点: `/api/search` `/api/facets` `/api/favorites` (GET)
 本机端点 (`127.0.0.1` / `::1` + 启动时 `_detect_lan_ip()` 探测到的本机 LAN + `ANALYSISWEB_ADMIN_IPS` env 逗号分隔): `POST /api/favorites` `POST /api/upload_search`
+
+> **入参约束**(2026-08-11 P0/P1 加):
+> - `/api/search?limit=N`:N 解析 try/except + 上下夹 **1 ≤ N ≤ 200**(默认 60),SQL 用 `LIMIT ?` 参数化(R218)
+> - `POST /api/upload_search` / `/api/favorites` 等所有写端点:body ≤ **8MB**,Content-Length 解析 try/except + 413 守卫(R220)
+> - `_upload_search` base64 解码后图像 ≤ **6MB**(R220 防 ImageBomb)
 
 完整列表 + 权限: `server.py:ADMIN_IPS` + README.md
 
@@ -135,6 +142,10 @@ $h = @{Authorization="Bearer $env:GH_TOKEN"}
 - **README CRLF vs LF**:Contents API 走 ReadAllBytes 会上传 CRLF bytes,跟 git object LF bytes SHA 不同
 - **改 env 名容易漏**:`PICTUREWEB_HOME` → `ANALYSISWEB_HOME`、`PICTUREWEB_TEST_PORT` → `ANALYSISWEB_TEST_PORT`,全局搜一遍(server.py / start.bat / start.sh / start_hidden.vbs / scripts/)
 - **Gitee POST /user/repos 不接 `public` 字段**(`true` / `false` / `1` / `0` 全报 `public is invalid`):建仓不传 public;Gitee 还规定**空仓不能改 public**(报 "空仓库不支持设置为公开仓库")→ 必须先 POST 1 个文件,再 PATCH `/repos/{owner}/{repo}`(必带 `name` 字段,否则 "name is missing")改 `private=false`
+- **`ANALYSISWEB_HOME` 默认值 Mac 上必覆盖**:`server.py:9` 默认 `D:/Mac/...`(Windows 路径),`scripts/build_db.py:48` + `server.py:9`(R217 批 7 加)有 Mac 守卫;Mac mini 没设 env 启动立即 `sys.exit(1)` 引导 `export ANALYSISWEB_HOME=...`(见 §7 历史 commit `ea68160` 8-10)
+- **`/api/search?limit=` 上下夹**:`server.py` `LIMIT_MIN=1, LIMIT_MAX=200`(R218 批 8 加),无 try/except 会 500 堆栈泄露;`f-string` 拼 LIMIT 已改 `?` 参数化 + 上下夹
+- **POST body 上限 8MB**:`server.py` `MAX_POST_SIZE = 8 * 1024 * 1024`(R220 批 8 加),超返 413;`_upload_search` base64 解码后图像 ≤ `MAX_UPLOAD_RAW = 6 * 1024 * 1024`,防 ImageBomb + 内存 OOM
+- **前端 `innerHTML` 拼用户数据 = XSS**:`index.html` `_ai_image` / `intent_search` / `upload_search` 5 处拼 `data.path` / `data.error` / `e.message` 全部改 `createElement + textContent + replaceChildren`(R219 批 8 加);`data.path` 来源是 server `_ai_image` `re.search` 抓 matrix MCP stdout,供应链/prompt 注入可塞 `</script><script>alert(1)</script>` → innerHTML 直接执行
 
 ## 8. 沟通规范
 
@@ -228,3 +239,16 @@ $h = @{Authorization="Bearer $env:GH_TOKEN"}
 
 > 本批 3 个 commit:`ea68160` server.py 守卫 + AGENTS.md §15 · `fa2a14b` scripts/_push_fix_r217.py 工具 · `f538ff0` _push_fix_r217.py Gitee POST/PUT 区分。
 > GitHub:ceb094e(2 files)→ cd0ab04(1 file)→ 6c431b3(1 file);Gitee:8cd1232a8b / 2354a4f542 / d441adef99 / b6332bc450。
+
+## 16. 变更记录(夜间迭代批 8 · 2026-08-11 02:00)
+
+> 触发:Verifier 8-10 23:25 未闭环 4 条 (Row 218/219/220/221,P0×2 + P1×2);任务 cron 描述"批 3 5 条意见"已全部在 §10/§11 闭环(批 3 + 批 4 2026-08-06/08-08),J10 授权自主决策 6 护栏临时豁免 → 自主切换到当前 8-10 23:25 最新未闭环意见。
+
+| 优先级 | 问题(Row#) | 修复 | 证据 |
+|---|---|---|---|
+| P0 | `server.py:149` limit 无 try/except + 319 `f-string` 拼 LIMIT 注入 + 用户传 `?limit=9999999` 内存爆(R218) | 1) `try/except (ValueError, TypeError): limit = 60` 包裹 int 解析;2) `limit = max(LIMIT_MIN, min(limit, LIMIT_MAX))` 上下夹 1~200;3) 顶部新增 `LIMIT_MIN, LIMIT_MAX = 1, 200` 常量;4) SQL `LIMIT {limit}` 改 `LIMIT ?` + `params.append(limit)` 参数化;5) `AGENTS.md §3` 加"limit ≤ 200"约束,§7 加 LIMIT 坑 | `wc -l server.py` 817 → 847;`grep "LIMIT ?" server.py` 新增 1 处;`curl '/api/search?limit=abc'` 不再 500 |
+| P0 | `index.html` `_ai_image` / `intent_search` / `upload_search` 5 处 `target.innerHTML = "..." + data.path/error + "..."` XSS 注入(R219) | 1) `988 / 1094 / 1101 / 1293` 4 处改 `createElement + textContent + replaceChildren`;2) `1096` `_ai_image` 成功分支 `img.src = data.path`(赋值安全,textContent 防文本注入)+ `replaceChildren`;3) `1098` 未知响应同步改 `textContent`;4) `AGENTS.md §7` 加 innerHTML 坑 | `wc -l index.html` 1320 → 1352;`grep -E "^\s*[a-zA-Z].*innerHTML.*\+\s*(data\.\|e\.message)" index.html` 0 命中(注释里命中是描述旧代码,正常) |
+| P1 | `server.py:182` `do_POST` Content-Length 无 try/except + `rfile.read(length)` 无上限(ImageBomb + OOM)(R220) | 1) `try/except (ValueError, TypeError)` 包 `int(self.headers.get('Content-Length', 0) or 0)`,异常返 400;2) 顶部新增 `MAX_POST_SIZE = 8 * 1024 * 1024`,超返 413;3) `_upload_search` base64 解码后 `if len(raw) > MAX_UPLOAD_RAW: 返 413`,防客户端送 base64 后压缩/重复填;4) `AGENTS.md §3` 加 "body ≤ 8MB" 约束,§7 加 POST body 坑 | `MAX_POST_SIZE / MAX_UPLOAD_RAW / LIMIT_MIN / LIMIT_MAX` 4 个常量;`curl -X POST --data-binary @bigfile` 超 8MB 返 413 |
+| P1 | `AGENTS.md:19/26` + `README.md:38/101` 仍写 Windows 路径 `D:\Mac\...`,跟 `server.py:9` Mac 守卫(R217 批 7)不同步,新 agent 读这俩文件误以为项目只能在 Windows 跑(R221) | 1) `AGENTS.md:19` 工作目录 cell 改 `$ANALYSISWEB_HOME/_ArchiAttackAnalysisLib/AnalysisWeb/` + Mac/Windows 双值;2) `AGENTS.md:26` 图片根同改;3) `AGENTS.md §1` 表后加 1 行注"路径写法以本机实际为准";4) `AGENTS.md §7` 加 "ANALYSISWEB_HOME 默认值 Mac 上必覆盖" 坑;5) `README.md:38` 图片根同步双值;6) `README.md:101` `ANALYSISWEB_HOME` env 默认值改"(无默认,Mac 守卫必填)" | `grep "D:\\\\Mac" AGENTS.md README.md` 只命中 §1 表格内的 Windows 参考值 + §7 已知坑历史 commit 引用,无歧义 |
+
+> 本批 commit 单条,`fix(批 8 02:00 R218/R219/R220/R221 P0×2 + P1×2)`,走 `git_data_push.py` 推 GitHub + `_push_gitee_v100.py` 推 Gitee。
