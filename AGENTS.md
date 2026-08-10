@@ -217,3 +217,13 @@ $h = @{Authorization="Bearer $env:GH_TOKEN"}
 | P2 | `libraryControl.md:42-43`(R146)`server.py ~729 行 / index.html ~1218 行` 漂移;`scripts/` 目录树只列 8 文件,实际 17 个 | 行数同步 811 / 1320;`scripts/` 按 `ls -la` 顺序列全 17 个 .py + `__pycache__/`,标注从 PictureWeb 继承的模板用脚本;变更记录加 8-10 批 6 行 | `wc -l libraryControl.md` 148 → 159 |
 
 > 本批 commit 单条,`fix(批 6 02:00 R83/R84/R143/R144/R145/R86/R146)`,走 `git_data_push.py` 推 GitHub + Gitee。
+
+## 15. 变更记录(夜间迭代批 7 · 2026-08-10 23:40)
+
+> 触发:Verifier 8-10 23:25 第 1 条 P0 (Row 217) — `server.py:9` `ANALYSISWEB_HOME` 默认值仍是 Windows 路径 `D:/Mac/Mac/...`,跟 `scripts/build_db.py:48` 一样缺 Mac 守卫。Mac mini 上没设 `ANALYSISWEB_HOME` env 时启动直接走默认值,后拼出来的 `IMG_ROOT` 仍是 `D:/.../Mobile/Style`,跟实际 Mac 路径 `/Users/aaron/.../Mobile/Style` 不一致,所有图片 404。
+
+| 优先级 | 问题 | 修复 | 证据 |
+|---|---|---|---|
+| P0 | `server.py:9` `ANALYSISWEB_HOME` 默认值是 Windows 路径 `D:/Mac/...`,`build_db.py:48` 已有 Mac 守卫,`server.py` 缺,Mac mini 没设 env 启动 → IMG_ROOT 错误路径 → 所有图片 404 | server.py:9 后立即加 Mac 守卫(抄 build_db.py:48 模板):`if sys.platform == 'darwin' and ANALYSISWEB_HOME.startswith('D:'): print('[server] ❌ ...', file=sys.stderr); print('   请:export ANALYSISWEB_HOME=...', file=sys.stderr); sys.exit(1)` | `python3 server.py`(无 env)→ `[server] ❌ ANALYSISWEB_HOME 是 Windows 路径` + exit=1;`ANALYSISWEB_HOME=/Users/aaron/.../Attack/03-Analysis python3 -c "import server; print(server.IMG_ROOT)"` → `/Users/aaron/.../Mobile/Style` 正常;`wc -l server.py` 811 → 817 |
+
+> 本批 commit 单条,`fix(P0 R217 server.py Mac 守卫)`,走 `git push` 推 GitHub + Gitee(本机 remote URL 已嵌入 token,TCP 443 推送走 Contents API fallback)。

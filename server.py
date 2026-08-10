@@ -7,6 +7,12 @@ import urllib.parse
 # 默认值跟原 hardcoded 一致,向后兼容(不设环境变量时行为不变)
 # 换电脑或换盘符只需: set ANALYSISWEB_HOME=E:/your/path
 ANALYSISWEB_HOME = os.environ.get('ANALYSISWEB_HOME', 'D:/Mac/Mac/workteam/05_space/03_architect/Attack/03-Analysis')
+# 2026-08-10 P0 修复(R217):跟 scripts/build_db.py:48 一样,Mac 上默认值仍是 D:\ 路径立即 fail
+# 引导用户 export ANALYSISWEB_HOME=.../Attack/03-Analysis 根目录绝对路径
+if sys.platform == 'darwin' and ANALYSISWEB_HOME.startswith('D:'):
+    print('[server] ❌ ANALYSISWEB_HOME 是 Windows 路径,在 Mac 上跑不动', file=sys.stderr)
+    print('   请:export ANALYSISWEB_HOME=... (你的 Attack/03-Analysis 根目录绝对路径)', file=sys.stderr)
+    sys.exit(1)
 # DB:本项目私有 _AnalysisDb/AnalysisDb.db(2026-07-24 v1.0.0 从 PictureDb 拆出)
 DB = os.path.join(os.path.dirname(__file__), '_AnalysisDb', 'AnalysisDb.db')
 FAV_FILE = os.path.join(os.path.dirname(__file__), 'favorites.json')
