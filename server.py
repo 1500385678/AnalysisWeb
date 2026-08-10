@@ -40,6 +40,13 @@ active_lock = Lock()
 active_count = 0
 # 2026-08-10 P0:_ai_image 串行化锁(matrix MCP 一次接 1 路)
 _ai_image_lock = Lock()
+# 2026-08-11 P1 修复(R220):POST body 上限 8MB,防御 ImageBomb + 内存 OOM
+# SimpleHTTPRequestHandler 没 max body 配置,_upload_search 接 base64 4/3 膨胀
+# 8MB base64 → 解码后约 6MB 原图,够 _compute_phash 8x8 缩略用
+MAX_POST_SIZE = 8 * 1024 * 1024
+MAX_UPLOAD_RAW = 6 * 1024 * 1024  # _upload_search base64 解码后图像大小上限
+# 2026-08-11 P0 修复(R218):limit 上下夹
+LIMIT_MIN, LIMIT_MAX = 1, 200  # 200 = _upload_search top20 + 10x 余量
 
 def load_favs():
     if not os.path.exists(FAV_FILE):
@@ -146,7 +153,14 @@ class Handler(SimpleHTTPRequestHandler):
             render_style = (qs.get('render_style', [''])[0] or '').strip()
             color_palette = (qs.get('color_palette', [''])[0] or '').strip()
             favs_only = qs.get('favs_only', ['0'])[0] == '1'
-            limit = int(qs.get('limit', ['60'])[0])
+            # 2026-08-11 P0 修复(R218):limit 解析 try/except + 上下夹 + SQL ? 参数化
+            # 之前:limit = int(...) 无 try/except,?limit=abc 直接 ValueError → 500;
+            # ?limit=9999999 让 SQL 全表扫+内存爆;f-string 拼 LIMIT 纵深防御缺失
+            try:
+                limit = int(qs.get('limit', ['60'])[0])
+            except (ValueError, TypeError):
+                limit = 60
+            limit = max(LIMIT_MIN, min(limit, LIMIT_MAX))  # 上下夹,SQL ? 拼合法 int
             try:
                 items = self._search(q, keywords, project, scene, light, mood, arch, company, view_type,
                                       analysis_type, drawing_method, subject, scale, render_style, color_palette,
@@ -179,7 +193,17 @@ class Handler(SimpleHTTPRequestHandler):
                 'error': f'权限不足:此操作仅限本机({" / ".join(ADMIN_IPS)})',
             }, status=403)
             return
-        length = int(self.headers.get('Content-Length', 0))
+        # 2026-08-11 P1 修复(R220):Content-Length 解析 try/except + MAX_POST_SIZE 8MB 守卫
+        # 之前:int(...) 无 try/except,恶意 client 发 Content-Length: abc → ValueError → 500 堆栈泄露;
+        # rfile.read(length) 无上限,POST body 可塞 GB 级(_upload_search base64 4/3 膨胀,SimpleHTTP 没 max body 配置 → 内存 OOM 风险)
+        try:
+            length = int(self.headers.get('Content-Length', 0) or 0)
+        except (ValueError, TypeError):
+            self._json({'error': 'Content-Length 解析失败'}, status=400)
+            return
+        if length > MAX_POST_SIZE:
+            self._json({'error': f'body 超过 {MAX_POST_SIZE // 1024 // 1024}MB 上限'}, status=413)
+            return
         body = self.rfile.read(length) if length else b''
         try:
             data = json.loads(body or b'{}')
@@ -316,7 +340,9 @@ class Handler(SimpleHTTPRequestHandler):
                 return []
             sql += f" AND i.id IN ({','.join(['?']*len(favs))})" if use_fts else f" AND id IN ({','.join(['?']*len(favs))})"
             params += favs
-        sql += f" ORDER BY i.id DESC LIMIT {limit}" if use_fts else f" ORDER BY id DESC LIMIT {limit}"
+        # 2026-08-11 P0 修复(R218):LIMIT 改 ? 参数化(已上下夹 max(LIMIT_MIN,min(LIMIT_MAX)),值是合法 int)
+        sql += " ORDER BY i.id DESC LIMIT ?" if use_fts else " ORDER BY id DESC LIMIT ?"
+        params.append(limit)
         rows = conn.execute(sql, params).fetchall()
         out = []
         for r in rows:
@@ -589,6 +615,10 @@ class Handler(SimpleHTTPRequestHandler):
             raw = base64.b64decode(b64.split(',', 1)[1])
         except Exception as e:
             self._json({'error': 'base64 解码失败: ' + str(e)})
+            return
+        # 2026-08-11 P1 修复(R220):raw 解码后再 assert < 6MB,防御客户端送 base64 后压缩/重复填
+        if len(raw) > MAX_UPLOAD_RAW:
+            self._json({'error': f'解码后图像超过 {MAX_UPLOAD_RAW // 1024 // 1024}MB'}, status=413)
             return
         up_phash = self._compute_phash(raw)
         conn = sqlite3.connect(DB)
