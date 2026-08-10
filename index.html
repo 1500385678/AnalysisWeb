@@ -985,7 +985,11 @@ async function searchIntent() {
   const data = await r.json();
 
   if (data.error) {
-    results.innerHTML = '<div class="loading">⚠️ ' + data.error + '</div>';
+    // 2026-08-11 P0 修复(R219):textContent 化,杜绝 data.error 含 " < > 时破 innerHTML 触发 XSS
+    const errBox = document.createElement('div');
+    errBox.className = 'loading';
+    errBox.textContent = '⚠️ ' + data.error;
+    results.replaceChildren(errBox);
     return;
   }
   if (!data.items || data.items.length === 0) {
@@ -1090,15 +1094,39 @@ async function generateVariant(itemId, btn) {
       body: JSON.stringify({prompt: promptHint, aspect_ratio: '3:2', resolution: '2K'}),
     });
     const data = await r.json();
+    // 2026-08-11 P0 修复(R219):_ai_image success/error/未知 3 分支全改 createElement+textContent
+    // 之前:target.innerHTML 拼 data.path(data.path 来自 server._ai_image re.search 抓 matrix MCP stdout,
+    // 供应链/prompt 注入可塞 "</script><script>alert(1)</script>"),data.error 来自 server 异常路径可被 LLM 或 MCP 注入
+    // 改法:img.src = data.path 赋值安全(textContent 已防文本注入,img.src 由浏览器解析为 URL 不当 HTML 解析)
+    target.replaceChildren();
     if (data.error) {
-      target.innerHTML = '<div style="color:#ff3b30">⚠️ ' + data.error + '</div>';
+      const errBox = document.createElement('div');
+      errBox.style.color = '#ff3b30';
+      errBox.textContent = '⚠️ ' + data.error;
+      target.appendChild(errBox);
     } else if (data.path) {
-      target.innerHTML = '<div style="color:var(--accent);font-weight:500">✅ 已生成</div><img src="' + data.path + '" style="max-width:100%;border-radius:8px;margin-top:8px">';
+      const okBox = document.createElement('div');
+      okBox.style.color = 'var(--accent)';
+      okBox.style.fontWeight = '500';
+      okBox.textContent = '✅ 已生成';
+      const img = document.createElement('img');
+      img.src = data.path;
+      img.style.maxWidth = '100%';
+      img.style.borderRadius = '8px';
+      img.style.marginTop = '8px';
+      target.appendChild(okBox);
+      target.appendChild(img);
     } else {
-      target.innerHTML = '<div style="color:#ff3b30">⚠️ 未知响应</div>';
+      const unk = document.createElement('div');
+      unk.style.color = '#ff3b30';
+      unk.textContent = '⚠️ 未知响应';
+      target.appendChild(unk);
     }
   } catch (e) {
-    target.innerHTML = '<div style="color:#ff3b30">⚠️ ' + e.message + '</div>';
+    const catchBox = document.createElement('div');
+    catchBox.style.color = '#ff3b30';
+    catchBox.textContent = '⚠️ ' + e.message;
+    target.replaceChildren(catchBox);
   } finally {
     btn.disabled = false;
     btn.textContent = origText;
@@ -1290,7 +1318,11 @@ async function handleFile(f) {
   closeUpload();
   meta.textContent = '上传图 ' + (f.name||'') + ' → 共 ' + data.count + ' 张相似图';
   if (data.error) {
-    grid.innerHTML = '<div class="loading">' + data.error + '</div>';
+    // 2026-08-11 P0 修复(R219):textContent 化,杜绝 data.error 注入
+    const errBox = document.createElement('div');
+    errBox.className = 'loading';
+    errBox.textContent = data.error;
+    grid.replaceChildren(errBox);
     return;
   }
   // 复用 search 渲染
