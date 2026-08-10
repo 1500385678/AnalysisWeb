@@ -35,7 +35,7 @@ python -X utf8 server.py
 - Python 3.10+ 标准库
 - `Pillow`(pHash 计算 + 缩略图)· `pip install Pillow`
 - 共用 `_AnalysisDb/AnalysisDb.db`(本项目私有)
-- 图片根 `D:\Mac\Mac\workteam\05_space\03_architect\Attack\03-Analysis\Mobile`
+- 图片根 `$ANALYSISWEB_HOME/Mobile/`(Mac: `/Users/aaron/Mac/WorkTeam/05_Space/03_Architect/Attack/03-Analysis/Mobile`;Windows: `D:\Mac\Mac\workteam\05_space\03_architect\Attack\03-Analysis\Mobile`)
 
 ## 标签维度(AnalysisWeb 专用)
 
@@ -71,8 +71,8 @@ python -X utf8 server.py
 
 ```
 AnalysisWeb/
-├── server.py            # 后端(单文件,736 行 · 2026-08-09 P2 行数同步后)
-├── index.html           # 搜索主页(CSS+JS 内嵌,苹果风浅色)
+├── server.py            # 后端(单文件,847 行 · 2026-08-11 P2 行数同步后)
+├── index.html           # 搜索主页(CSS+JS 内嵌,苹果风浅色,1352 行)
 ├── start.bat            # Windows 启动
 ├── start.sh             # macOS/Linux 启动
 ├── start_hidden.vbs     # 无窗口启动(Win 开机自启)
@@ -98,7 +98,7 @@ AnalysisWeb/
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `ANALYSISWEB_HOME` | `D:\Mac\Mac\Mac\workteam\05_space\03_architect\Attack\03-Analysis` | 图片根的父目录(Mac 用户改成 `/Users/aaron/Mac/...`) |
+| `ANALYSISWEB_HOME` | (无默认,Mac 守卫必填) | 图片根的父目录;Mac mini:`/Users/aaron/Mac/WorkTeam/05_Space/03_Architect/Attack/03-Analysis`;Windows:`D:\Mac\Mac\Mac\workteam\05_space\03_architect\Attack\03-Analysis` |
 | `ANALYSISWEB_TEST_PORT` | `8082` | dev 用端口(默认即 8082,设了则覆盖) |
 | `ANALYSISWEB_EMBEDDING_DIR` | _(空)_ | AI 语义搜 `embedding.py` 所在目录;**不设则 `/api/semantic_search` 返 501 + 友好提示** |
 
