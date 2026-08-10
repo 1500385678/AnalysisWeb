@@ -226,4 +226,5 @@ $h = @{Authorization="Bearer $env:GH_TOKEN"}
 |---|---|---|---|
 | P0 | `server.py:9` `ANALYSISWEB_HOME` 默认值是 Windows 路径 `D:/Mac/...`,`build_db.py:48` 已有 Mac 守卫,`server.py` 缺,Mac mini 没设 env 启动 → IMG_ROOT 错误路径 → 所有图片 404 | server.py:9 后立即加 Mac 守卫(抄 build_db.py:48 模板):`if sys.platform == 'darwin' and ANALYSISWEB_HOME.startswith('D:'): print('[server] ❌ ...', file=sys.stderr); print('   请:export ANALYSISWEB_HOME=...', file=sys.stderr); sys.exit(1)` | `python3 server.py`(无 env)→ `[server] ❌ ANALYSISWEB_HOME 是 Windows 路径` + exit=1;`ANALYSISWEB_HOME=/Users/aaron/.../Attack/03-Analysis python3 -c "import server; print(server.IMG_ROOT)"` → `/Users/aaron/.../Mobile/Style` 正常;`wc -l server.py` 811 → 817 |
 
-> 本批 commit 单条,`fix(P0 R217 server.py Mac 守卫)`,走 `git push` 推 GitHub + Gitee(本机 remote URL 已嵌入 token,TCP 443 推送走 Contents API fallback)。
+> 本批 3 个 commit:`ea68160` server.py 守卫 + AGENTS.md §15 · `fa2a14b` scripts/_push_fix_r217.py 工具 · `f538ff0` _push_fix_r217.py Gitee POST/PUT 区分。
+> GitHub:ceb094e(2 files)→ cd0ab04(1 file)→ 6c431b3(1 file);Gitee:8cd1232a8b / 2354a4f542 / d441adef99 / b6332bc450。
