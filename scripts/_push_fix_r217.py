@@ -32,7 +32,9 @@ if not token:
     sys.exit(1)
 
 FILES = [
-    ('scripts/_push_fix_r217.py', 'feat: scripts/_push_fix_r217.py · 夜间迭代批 7 Gitee Contents API 推送工具(批 7 自推)'),
+    # 默认值:夜间迭代批 7 实际推送内容。后续夜间迭代根据需要修改这个列表即可复用。
+    ('server.py', 'fix(P0 R217): server.py Mac 守卫(夜间迭代批 7)'),
+    ('AGENTS.md', 'fix(P0 R217): AGENTS.md §15 批 7 变更记录(夜间迭代批 7)'),
 ]
 
 
