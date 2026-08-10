@@ -32,8 +32,7 @@ if not token:
     sys.exit(1)
 
 FILES = [
-    ('server.py', 'fix(P0 R217): server.py Mac 守卫(夜间迭代批 7)'),
-    ('AGENTS.md', 'fix(P0 R217): AGENTS.md §15 批 7 变更记录(夜间迭代批 7)'),
+    ('scripts/_push_fix_r217.py', 'feat: scripts/_push_fix_r217.py · 夜间迭代批 7 Gitee Contents API 推送工具(批 7 自推)'),
 ]
 
 
@@ -43,24 +42,37 @@ def put_file(rel_path, message):
         content = f.read()
     content_b64 = base64.b64encode(content).decode('ascii')
 
-    # 拿当前 SHA
+    # 拿当前 SHA(文件不存在 → POST 新建;存在 → PUT 更新)
     url = f'{API}/repos/{OWNER}/{REPO}/contents/{rel_path}?ref={BRANCH}&access_token={token}'
-    with urllib.request.urlopen(url, timeout=15) as r:
-        cur = json.loads(r.read())
-    cur_sha = cur['sha']
-    print(f'  cur  {rel_path}: sha={cur_sha[:10]} size={cur["size"]}')
+    cur_sha = None
+    try:
+        with urllib.request.urlopen(url, timeout=15) as r:
+            cur = json.loads(r.read())
+        if isinstance(cur, dict):
+            cur_sha = cur['sha']
+            print(f'  cur  {rel_path}: sha={cur_sha[:10]} size={cur["size"]} (PUT update)')
+        else:
+            print(f'  cur  {rel_path}: 不存在 (POST create)')
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            print(f'  cur  {rel_path}: 404 (POST create)')
+        else:
+            raise
 
-    # PUT 更新
+    # POST 新建 / PUT 更新(Gitee Contents API 区分方法)
+    method = 'PUT' if cur_sha else 'POST'
     put_url = f'{API}/repos/{OWNER}/{REPO}/contents/{rel_path}?access_token={token}'
-    body = json.dumps({
+    payload = {
         'access_token': token,
         'content': content_b64,
-        'sha': cur_sha,
         'message': message,
         'branch': BRANCH,
-    }, ensure_ascii=False).encode('utf-8')
+    }
+    if cur_sha:
+        payload['sha'] = cur_sha
+    body = json.dumps(payload, ensure_ascii=False).encode('utf-8')
     req = urllib.request.Request(
-        put_url, data=body, method='PUT',
+        put_url, data=body, method=method,
         headers={'Content-Type': 'application/json;charset=utf-8'},
     )
     try:
@@ -69,7 +81,10 @@ def put_file(rel_path, message):
         print(f'  ✅   {rel_path}: new commit {resp["commit"]["sha"][:10]}')
         return True
     except urllib.error.HTTPError as e:
-        err = json.loads(e.read())
+        try:
+            err = json.loads(e.read())
+        except Exception:
+            err = {'message': e.reason}
         print(f'  ❌   {rel_path}: {e.code} {err.get("message")}')
         return False
 
