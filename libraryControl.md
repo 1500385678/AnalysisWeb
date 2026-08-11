@@ -39,8 +39,8 @@ _(暂无 — AnalysisWeb 是单仓单服务结构)_
 
 - `AGENTS.md` · 项目真值源(必读)
 - `README.md` · 用户档
-- `server.py` · 后端(单文件,~811 行 · 8-10 P0/P1 后)
-- `index.html` · 搜索主页(单文件,~1320 行 · 8-10 P0 XSS 改 createElement 后)
+- `server.py` · 后端(单文件,847 行 · 2026-08-11 P2 行数同步后)
+- `index.html` · 搜索主页(单文件,1385 行 · 2026-08-11 P0 XSS R277 后)
 - `scripts/` · 推送 / 打标 / 巡检工具(17 个 .py · 8-10 P2 build_db 备份后)
 - `thumbs/` · 缩略图缓存(运行时,gitignore)
 - `_AnalysisDb/AnalysisDb.db` · SQLite 数据库(运行时,gitignore)
@@ -119,8 +119,8 @@ python3 -X utf8 server.py
 
 ```
 AnalysisWeb/
-├── server.py             # 后端(单文件,~811 行 · 8-10 P0/P1 后)
-├── index.html            # 搜索主页(单文件,~1320 行 · 8-10 P0 XSS 改 createElement 后)
+├── server.py             # 后端(单文件,847 行 · 2026-08-11 P2 行数同步后)
+├── index.html            # 搜索主页(单文件,1385 行 · 2026-08-11 P0 XSS R277 后)
 ├── start.bat / start.sh  # 启动脚本(均带 -X utf8 · 跨平台镜像)
 ├── start_hidden.vbs      # 无窗口启动(Windows)
 ├── libraryControl.md     # 本文件 · AnalysisWeb 索引员/排长

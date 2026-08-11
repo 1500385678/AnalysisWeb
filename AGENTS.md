@@ -36,7 +36,7 @@ PictureWeb 收效果图 / 参考图,AnalysisWeb 专门收**方案分析图**(轴
 ```
 AnalysisWeb/
 ├── server.py             # 后端(单文件,847 行 · 2026-08-11 P2 行数同步)
-├── index.html            # 搜索主页(CSS+JS 内嵌,苹果风浅色,1352 行)
+├── index.html            # 搜索主页(CSS+JS 内嵌,苹果风浅色,1385 行)
 ├── start.bat / start.sh  # 启动脚本(均带 -X utf8 · 跨平台镜像)
 ├── start_hidden.vbs      # 无窗口启动(Windows)
 ├── libraryControl.md     # Obsidian control 文件(排长索引员 · 当前 v1.0.0/8082/9 维 · 2026-08-08 方案A 重写)
@@ -262,3 +262,20 @@ $h = @{Authorization="Bearer $env:GH_TOKEN"}
 | P0 | `index.html:1331-1345` upload_search 卡片 `card.innerHTML` + `card.onclick` 字符串拼接,`item.filename` 含 `<script>` 触发 XSS(R277) | 整段改写,跟 R83 方案完全对齐:1) `card.addEventListener('click', () => openModal(JSON.parse(card.dataset.item)))`;2) `card.dataset.item = JSON.stringify(safeItem)`,safeItem 含 11 字段(id/project/filename/path/url/caption/scene/light/space/material/mood);3) sim-badge / img / card-body / card-title / project / tags 全部 `createElement + textContent`;4) tags 子循环也改 createElement+textContent(不拼字符串);5) 注释加 R277 历史 | `wc -l index.html` 1352 → 1385;`grep "card\.innerHTML\|card\.onclick\|tagsHtml" index.html` 0 命中正文(注释里命中是描述旧代码,正常);`node --check` 主 script 块(19304..39305,525 行)语法 ✅ |
 
 > 本批 commit 单条,`fix(批 9 23:40 R277 P0)`,走 `git_data_push.py` 推 GitHub + `_push_gitee_v100.py` 推 Gitee。
+
+## 18. 变更记录(夜间迭代批 3 二次复核 · 2026-08-12 02:00)
+
+> 触发:CronTask「夜间迭代批 3 (02:00)」复跑,任务描述对应 5 条意见(批 3 8-6 时期:`P0 start.sh utf8` / `P0 server.py:580 端口冲突` / `P1 9 维承诺` / `P1 embedding 硬路径` / `P1 启动横幅` / `P2 行数漂移`)。复跑时**全部已在 §10 批 3 (2026-08-06 02:00) 闭环**,且 §11-§17 多次复用同一 `server.py` / `index.html`,**实际代码无新 bug,只追 P2 行数同步**。
+
+| 优先级 | 问题 | 当前状态 | 证据 |
+|---|---|---|---|
+| P0 | `start.sh` 缺 `-X utf8`(批 1 已改) | ✅ §10 闭环 | `start.sh:16` `python3 -X utf8 server.py` |
+| P0 | `server.py:580` 端口冲突 `sleep 10` 隐式 return 0 | ✅ §10 闭环 → §16 加 R218 LIMIT 上下夹后行号变 813/840 | `grep "except OSError" server.py` 命中 4 处(line 57/695/813/840) |
+| P1 | 9 维承诺空头(`_search` 只 7 维 / `facets` 不返 6 维) | ✅ §10 闭环 | `server.py:150-326` 9 维 `drawing_method` / `subject` / `scale` / `render_style` / `color_palette` / `view_type` 全部入参 + 入 SQL |
+| P1 | `_semantic_search` 硬塞 `sys.path.insert(0, 父目录)` | ✅ §10 闭环 | `server.py:419-427` 读 `ANALYSISWEB_EMBEDDING_DIR` env,缺返 501 + 中文提示 |
+| P1 | 启动横幅硬编码 Windows LAN IP | ✅ §10 闭环 → §13 加 `_detect_lan_ip()` 同步并入 ADMIN_IPS | `server.py:804-811` socket 连 `8.8.8.8:80` 探测本机 LAN |
+| P2 | AGENTS.md / README.md / libraryControl.md 行数漂移(server.py 实际 847,index.html 实际 1385) | ✅ **本批同步** | `wc -l server.py index.html` = 847 / 1385;`AGENTS.md:39` 1352 → 1385;`README.md:75` 1352 → 1385;`libraryControl.md:42-43, 122-123` 811/1320 → 847/1385 |
+
+> **结论**:5 条意见全部已闭环,**本次只追 P2 行数同步**。Verifier sheet row 14 之前的所有 analysisweb 5 条意见已全部消化(§10),row 17+ 之后的意见(8-7/8-8/8-9/8-10/8-11 Verifier)分别在 §11-§17 闭环。
+>
+> 本批 commit 单条,`docs(批 3 二次复核 8-12 02:00 P2 行数同步)`,走 `git_data_push.py` 推 GitHub + `_push_gitee_v100.py` 推 Gitee。
