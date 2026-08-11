@@ -1326,21 +1326,54 @@ async function handleFile(f) {
     return;
   }
   // 复用 search 渲染
+  // 2026-08-11 P0 修复(R277):跟 R83 方案对齐,upload_search 卡片改 createElement + textContent +
+  // addEventListener + dataset.item,杜绝 card.innerHTML 模板字符串 + card.onclick= 拼接 item 字段
+  // (item.filename / project / scene / url / similarity 含 " ' <script> 都会触发 XSS)
   grid.innerHTML = '';
   data.items.forEach(item => {
     const card = document.createElement('div');
     card.className = 'card';
-    const tagsHtml = (item.scene||'').split(';').map(t=>t.trim()).filter(Boolean).slice(0,3).map(t=>`<span class="tag">${t}</span>`).join('');
-    card.innerHTML = `
-      <div class="sim-badge">相似 ${item.similarity}%</div>
-      <img src="${item.url}">
-      <div class="card-body">
-        <div class="card-title">${item.filename}</div>
-        <div>${item.project}</div>
-        <div class="tags">${tagsHtml}</div>
-      </div>
-    `;
-    card.onclick = () => openModal(item);
+    const safeItem = {
+      url: item.url, filename: item.filename, project: item.project,
+      caption: item.caption, scene: item.scene, light: item.light, space: item.space,
+      material: item.material, mood: item.mood, path: item.path, id: item.id,
+    };
+    card.dataset.item = JSON.stringify(safeItem);
+    card.addEventListener('click', () => openModal(JSON.parse(card.dataset.item)));
+
+    const badge = document.createElement('div');
+    badge.className = 'sim-badge';
+    badge.textContent = `相似 ${item.similarity}%`;
+    card.appendChild(badge);
+
+    const img = document.createElement('img');
+    img.src = item.url;
+    img.addEventListener('error', () => { img.style.opacity = 0.3; });
+    card.appendChild(img);
+
+    const body = document.createElement('div');
+    body.className = 'card-body';
+
+    const title = document.createElement('div');
+    title.className = 'card-title';
+    title.textContent = item.filename || '';
+    body.appendChild(title);
+
+    const proj = document.createElement('div');
+    proj.textContent = item.project || '';
+    body.appendChild(proj);
+
+    const tags = document.createElement('div');
+    tags.className = 'tags';
+    (item.scene || '').split(';').map(t => t.trim()).filter(Boolean).slice(0, 3).forEach(t => {
+      const tag = document.createElement('span');
+      tag.className = 'tag';
+      tag.textContent = t;
+      tags.appendChild(tag);
+    });
+    body.appendChild(tags);
+
+    card.appendChild(body);
     grid.appendChild(card);
   });
 }

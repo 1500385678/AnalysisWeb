@@ -252,3 +252,13 @@ $h = @{Authorization="Bearer $env:GH_TOKEN"}
 | P1 | `AGENTS.md:19/26` + `README.md:38/101` 仍写 Windows 路径 `D:\Mac\...`,跟 `server.py:9` Mac 守卫(R217 批 7)不同步,新 agent 读这俩文件误以为项目只能在 Windows 跑(R221) | 1) `AGENTS.md:19` 工作目录 cell 改 `$ANALYSISWEB_HOME/_ArchiAttackAnalysisLib/AnalysisWeb/` + Mac/Windows 双值;2) `AGENTS.md:26` 图片根同改;3) `AGENTS.md §1` 表后加 1 行注"路径写法以本机实际为准";4) `AGENTS.md §7` 加 "ANALYSISWEB_HOME 默认值 Mac 上必覆盖" 坑;5) `README.md:38` 图片根同步双值;6) `README.md:101` `ANALYSISWEB_HOME` env 默认值改"(无默认,Mac 守卫必填)" | `grep "D:\\\\Mac" AGENTS.md README.md` 只命中 §1 表格内的 Windows 参考值 + §7 已知坑历史 commit 引用,无歧义 |
 
 > 本批 commit 单条,`fix(批 8 02:00 R218/R219/R220/R221 P0×2 + P1×2)`,走 `git_data_push.py` 推 GitHub + `_push_gitee_v100.py` 推 Gitee。
+
+## 17. 变更记录(夜间迭代批 9 · 2026-08-11 23:40)
+
+> 触发:Verifier 8-11 23:25 第 1 条 P0 (Row 277) — `index.html:1334` upload_search 卡片渲染 `card.innerHTML = ...` 模板字符串 + `card.onclick = () => openModal(item)` 字符串拼接 item 字段,`item.filename / project / scene / url / similarity` 含 `"` `'` `<script>` 触发 XSS。批 6 (R83) 修了 renderCards + intent cards + openModal,**漏了 upload_search 里的卡片渲染**;批 8 (R219) 修了 _ai_image success/error 分支,**也漏了 upload_search 卡片**。
+
+| 优先级 | 问题(Row#) | 修复 | 证据 |
+|---|---|---|---|
+| P0 | `index.html:1331-1345` upload_search 卡片 `card.innerHTML` + `card.onclick` 字符串拼接,`item.filename` 含 `<script>` 触发 XSS(R277) | 整段改写,跟 R83 方案完全对齐:1) `card.addEventListener('click', () => openModal(JSON.parse(card.dataset.item)))`;2) `card.dataset.item = JSON.stringify(safeItem)`,safeItem 含 11 字段(id/project/filename/path/url/caption/scene/light/space/material/mood);3) sim-badge / img / card-body / card-title / project / tags 全部 `createElement + textContent`;4) tags 子循环也改 createElement+textContent(不拼字符串);5) 注释加 R277 历史 | `wc -l index.html` 1352 → 1385;`grep "card\.innerHTML\|card\.onclick\|tagsHtml" index.html` 0 命中正文(注释里命中是描述旧代码,正常);`node --check` 主 script 块(19304..39305,525 行)语法 ✅ |
+
+> 本批 commit 单条,`fix(批 9 23:40 R277 P0)`,走 `git_data_push.py` 推 GitHub + `_push_gitee_v100.py` 推 Gitee。
