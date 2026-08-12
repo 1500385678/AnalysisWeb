@@ -35,7 +35,7 @@ PictureWeb 收效果图 / 参考图,AnalysisWeb 专门收**方案分析图**(轴
 
 ```
 AnalysisWeb/
-├── server.py             # 后端(单文件,847 行 · 2026-08-11 P2 行数同步)
+├── server.py             # 后端(单文件,849 行 · 2026-08-13 P2 行数同步)
 ├── index.html            # 搜索主页(CSS+JS 内嵌,苹果风浅色,1385 行)
 ├── start.bat / start.sh  # 启动脚本(均带 -X utf8 · 跨平台镜像)
 ├── start_hidden.vbs      # 无窗口启动(Windows)
@@ -289,3 +289,20 @@ $h = @{Authorization="Bearer $env:GH_TOKEN"}
 | P0 | `server.py:129-130` `with open(full, 'rb') as f: self.wfile.write(f.read())` 大图 OOM(R280/R337 挂账 2 轮) | 1) 顶部 import 区加 `import shutil`;2) `wfile.write(f.read())` 改 `shutil.copyfileobj(f, self.wfile, 64 * 1024)` 流式 64KB chunk;3) Content-Length 仍用 `os.path.getsize()` 提前发,客户端进度条仍工作 | `wc -l server.py`:847 → 849(+ 1 行 import + 1 行注释);`grep "copyfileobj" server.py` 命中 1 处;`grep "wfile.write(f.read())" server.py` 0 命中;`grep "import shutil" server.py` 1 处 |
 
 > 本批 commit 单条,`fix(批 10 23:40 R337 P0 /img/* 大图 OOM)`,走 `git_data_push.py` 推 GitHub + `_push_gitee_v100.py` 推 Gitee。
+
+## 20. 变更记录(夜间迭代批 3 三次复核 · 2026-08-13 02:00)
+
+> 触发:CronTask「夜间迭代批 3 (02:00)」第三次复跑。任务描述对应 5 条意见(批 3 8-6 时期:`P0 start.sh utf8` / `P0 server.py:580 端口冲突` / `P1 9 维承诺` / `P1 embedding 硬路径` / `P1 启动横幅` / `P2 行数漂移`)。三次复跑(§10 批 3 / §18 批 3 二次复核 8-12 02:00 / 本批 8-13 02:00)逐次确认:5 条意见早闭环,**实际代码无新 bug**。
+
+| 优先级 | 问题 | 当前状态 | 证据 |
+|---|---|---|---|
+| P0 | `start.sh` 缺 `-X utf8`(批 1 已改) | ✅ §10 闭环 | `start.sh:16` `python3 -X utf8 server.py` |
+| P0 | `server.py:580` 端口冲突 `sleep 10` 隐式 return 0 | ✅ §10 闭环 → §19 加 R337 shutil 后行号变 842 | `server.py:840-846` `except OSError as e: print(...); sys.exit(1)` |
+| P1 | 9 维承诺空头(`_search` 只 7 维 / `facets` 不返 6 维) | ✅ §10 闭环 | `server.py:152-156 / 282-283 / 324-338` 9 维全 SQL 入参 |
+| P1 | `_semantic_search` 硬塞 `sys.path.insert(0, 父目录)` | ✅ §10 闭环 | `server.py:421-429` 读 `ANALYSISWEB_EMBEDDING_DIR` env,缺返 501 + 中文提示 |
+| P1 | 启动横幅硬编码 Windows LAN IP | ✅ §10 闭环 → §13 加 `_detect_lan_ip()` 同步并入 ADMIN_IPS | `server.py:811-816` socket 连 `8.8.8.8:80` 探测本机 LAN |
+| P2 | AGENTS.md / README.md / libraryControl.md 行数漂移(server.py 849,index.html 1385) | ✅ **本批同步** | `wc -l server.py index.html` = 849 / 1385;`AGENTS.md:38` 847 → 849;`README.md:74` 847 → 849;`libraryControl.md:42,122` 847 → 849 |
+
+> **结论**:5 条意见全部已闭环,**本次只追 P2 行数同步**(批 10 df1b705 8-12 23:40 加 `import shutil` + 1 行注释,server.py 847→849,但 AGENTS.md §2 + README.md + libraryControl.md 4 处 847 没追)。Verifier sheet row 17~338 之间的 9 批意见(8-7/8-8/8-9/8-10/8-11/8-12 Verifier)分别在 §11-§19 闭环。
+>
+> 本批 commit 单条,`docs(批 3 三次复核 8-13 02:00 P2 行数同步)`,走 `git_data_push.py` 推 GitHub + `_push_gitee_v100.py` 推 Gitee。
