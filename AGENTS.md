@@ -279,3 +279,13 @@ $h = @{Authorization="Bearer $env:GH_TOKEN"}
 > **结论**:5 条意见全部已闭环,**本次只追 P2 行数同步**。Verifier sheet row 14 之前的所有 analysisweb 5 条意见已全部消化(§10),row 17+ 之后的意见(8-7/8-8/8-9/8-10/8-11 Verifier)分别在 §11-§17 闭环。
 >
 > 本批 commit 单条,`docs(批 3 二次复核 8-12 02:00 P2 行数同步)`,走 `git_data_push.py` 推 GitHub + `_push_gitee_v100.py` 推 Gitee。
+
+## 19. 变更记录(夜间迭代批 10 · 2026-08-12 23:40)
+
+> 触发:Verifier 8-12 23:25 第 1 条 P0 (Row 337) — `server.py:129-130` `/img/*` 走 `self.wfile.write(f.read())` 一次性把整个图读到内存,大图(50MB+) OOM。这条意见已在 8-11 R280 挂账 1 轮,本批 8-12 R337 二次出现必须闭环。
+
+| 优先级 | 问题(Row#) | 修复 | 证据 |
+|---|---|---|---|
+| P0 | `server.py:129-130` `with open(full, 'rb') as f: self.wfile.write(f.read())` 大图 OOM(R280/R337 挂账 2 轮) | 1) 顶部 import 区加 `import shutil`;2) `wfile.write(f.read())` 改 `shutil.copyfileobj(f, self.wfile, 64 * 1024)` 流式 64KB chunk;3) Content-Length 仍用 `os.path.getsize()` 提前发,客户端进度条仍工作 | `wc -l server.py`:847 → 849(+ 1 行 import + 1 行注释);`grep "copyfileobj" server.py` 命中 1 处;`grep "wfile.write(f.read())" server.py` 0 命中;`grep "import shutil" server.py` 1 处 |
+
+> 本批 commit 单条,`fix(批 10 23:40 R337 P0 /img/* 大图 OOM)`,走 `git_data_push.py` 推 GitHub + `_push_gitee_v100.py` 推 Gitee。

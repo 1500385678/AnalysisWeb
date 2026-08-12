@@ -2,6 +2,7 @@
 from http.server import HTTPServer, SimpleHTTPRequestHandler, ThreadingHTTPServer
 from threading import Lock
 import urllib.parse
+import shutil
 
 # 2026-07-24 v1.0.0 AnalysisWeb:用 ANALYSISWEB_HOME 环境变量 + 默认值,代替硬编码绝对路径
 # 默认值跟原 hardcoded 一致,向后兼容(不设环境变量时行为不变)
@@ -127,7 +128,8 @@ class Handler(SimpleHTTPRequestHandler):
                     self.send_header('Cache-Control', 'public, max-age=3600')
                     self.end_headers()
                     with open(full, 'rb') as f:
-                        self.wfile.write(f.read())
+                        # 流式传输 64KB chunk,避免大图(50MB+)wfile.write(f.read()) 一次性 OOM
+                        shutil.copyfileobj(f, self.wfile, 64 * 1024)
                 except Exception as e:
                     self.send_error(500, str(e))
             else:
