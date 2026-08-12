@@ -71,7 +71,7 @@ python -X utf8 server.py
 
 ```
 AnalysisWeb/
-├── server.py            # 后端(单文件,847 行 · 2026-08-11 P2 行数同步后)
+├── server.py            # 后端(单文件,849 行 · 2026-08-13 P2 行数同步后)
 ├── index.html           # 搜索主页(CSS+JS 内嵌,苹果风浅色,1385 行)
 ├── start.bat            # Windows 启动
 ├── start.sh             # macOS/Linux 启动
