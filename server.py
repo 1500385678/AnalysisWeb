@@ -414,7 +414,8 @@ class Handler(SimpleHTTPRequestHandler):
 
     def _semantic_search(self, text):
         if not text:
-            self._json({'error': 'q 不能为空', 'items': []})
+            # 2026-08-13 P0 修复(R407):silent 200+error 改 400,前端 axios 拿得到失败信号
+            self._json({'error': 'q 不能为空', 'items': []}, status=400)
             return
         # 2026-08-06 P1 修复:不再硬把父目录塞 sys.path(那强制 AnalysisWeb 必须
         # 部署在 _ArchiAttackAnalysisLib/ 下,违反 v1.0.0 独立运营 + GitHub 公开仓库承诺)
@@ -443,7 +444,9 @@ class Handler(SimpleHTTPRequestHandler):
                 })
             self._json({'count': len(out), 'items': out, 'query': text})
         except Exception as e:
-            self._json({'error': '语义搜索失败: ' + str(e), 'items': []})
+            # 2026-08-13 P0 修复(R407):silent 200+error 改 500,logging.exception 写 logs/ 跟 _search 对齐
+            logging.exception('_semantic_search 失败: text=%r', text)
+            self._json({'error': '语义搜索失败: ' + str(e), 'items': []}, status=500)
 
     def _intent_search(self, data):
         """设计意图找参考(2026-07-24 v2.0.6):
@@ -452,7 +455,8 @@ class Handler(SimpleHTTPRequestHandler):
         不依赖外部 LLM,纯 FTS5 + metadata 模板生成。"""
         intent = (data.get('intent') or '').strip()
         if not intent:
-            self._json({'error': 'intent 不能为空', 'items': []})
+            # 2026-08-13 P0 修复(R407):silent 200+error 改 400,前端 axios 拿得到失败信号
+            self._json({'error': 'intent 不能为空', 'items': []}, status=400)
             return
         import re as _re
         def tokenize(t):
@@ -468,7 +472,8 @@ class Handler(SimpleHTTPRequestHandler):
 
         intent_tokens = tokenize(intent)
         if not intent_tokens:
-            self._json({'error': 'intent 拆不出有效关键词', 'items': []})
+            # 2026-08-13 P0 修复(R407):silent 200+error 改 400,前端 axios 拿得到失败信号
+            self._json({'error': 'intent 拆不出有效关键词', 'items': []}, status=400)
             return
 
         # 中文 → metadata 关键词映射(让用户的口语描述能跟 metadata 对上)
@@ -611,12 +616,14 @@ class Handler(SimpleHTTPRequestHandler):
     def _upload_search(self, data):
         b64 = data.get('image', '')
         if not b64.startswith('data:image'):
-            self._json({'error': '需要 image base64'})
+            # 2026-08-13 P0 修复(R407):silent 200+error 改 400,前端 axios 拿得到失败信号
+            self._json({'error': '需要 image base64'}, status=400)
             return
         try:
             raw = base64.b64decode(b64.split(',', 1)[1])
         except Exception as e:
-            self._json({'error': 'base64 解码失败: ' + str(e)})
+            # 2026-08-13 P0 修复(R407):silent 200+error 改 400,客户端送非法 base64 是输入错
+            self._json({'error': 'base64 解码失败: ' + str(e)}, status=400)
             return
         # 2026-08-11 P1 修复(R220):raw 解码后再 assert < 6MB,防御客户端送 base64 后压缩/重复填
         if len(raw) > MAX_UPLOAD_RAW:
@@ -673,7 +680,8 @@ class Handler(SimpleHTTPRequestHandler):
         # 3) try/finally 兜底删临时文件,120s 超时/异常也不会残留磁盘。
         prompt = data.get('prompt', '').strip()
         if not prompt:
-            self._json({'error': 'prompt 不能为空'})
+            # 2026-08-13 P0 修复(R407):silent 200+error 改 400,前端 axios 拿得到失败信号
+            self._json({'error': 'prompt 不能为空'}, status=400)
             return
         import subprocess, re, tempfile
         req_fd, req_path = tempfile.mkstemp(prefix='_ai_prompt_', suffix='.json', dir=os.path.dirname(__file__))
@@ -688,9 +696,14 @@ class Handler(SimpleHTTPRequestHandler):
             if m:
                 self._json({'path': m.group(1)})
             else:
-                self._json({'error': (r.stdout or r.stderr)[:500]})
+                # 2026-08-13 P0 修复(R407):mavis matrix 上游失败 502(不是 4xx 也不是我方 500)
+                # 响应侧只返脱敏 reason_code,stdout/stderr 原文进 logs/ 留底(对应 R409 P1 脱敏要求)
+                logging.error('_ai_image mavis matrix 失败 rc=%s stdout=%r stderr=%r', r.returncode, (r.stdout or '')[:500], (r.stderr or '')[:500])
+                self._json({'error': 'ai_image_failed', 'reason_code': 'matrix_mcp_unreachable'}, status=502)
         except Exception as e:
-            self._json({'error': str(e)})
+            # 2026-08-13 P0 修复(R407):异常路径 500 + logging.exception 写 logs/ 跟 _search 对齐
+            logging.exception('_ai_image 异常: prompt=%r', prompt)
+            self._json({'error': 'ai_image_failed: ' + str(e)}, status=500)
         finally:
             try:
                 os.unlink(req_path)
