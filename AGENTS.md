@@ -35,7 +35,7 @@ PictureWeb 收效果图 / 参考图,AnalysisWeb 专门收**方案分析图**(轴
 
 ```
 AnalysisWeb/
-├── server.py             # 后端(单文件,849 行 · 2026-08-13 P2 行数同步)
+├── server.py             # 后端(单文件,862 行 · 2026-08-14 P2 行数同步)
 ├── index.html            # 搜索主页(CSS+JS 内嵌,苹果风浅色,1385 行)
 ├── start.bat / start.sh  # 启动脚本(均带 -X utf8 · 跨平台镜像)
 ├── start_hidden.vbs      # 无窗口启动(Windows)
@@ -306,3 +306,20 @@ $h = @{Authorization="Bearer $env:GH_TOKEN"}
 > **结论**:5 条意见全部已闭环,**本次只追 P2 行数同步**(批 10 df1b705 8-12 23:40 加 `import shutil` + 1 行注释,server.py 847→849,但 AGENTS.md §2 + README.md + libraryControl.md 4 处 847 没追)。Verifier sheet row 17~338 之间的 9 批意见(8-7/8-8/8-9/8-10/8-11/8-12 Verifier)分别在 §11-§19 闭环。
 >
 > 本批 commit 单条,`docs(批 3 三次复核 8-13 02:00 P2 行数同步)`,走 `git_data_push.py` 推 GitHub + `_push_gitee_v100.py` 推 Gitee。
+
+## 21. 变更记录(夜间迭代批 3 四次复核 · 2026-08-14 02:00)
+
+> 触发:CronTask「夜间迭代批 3 (02:00)」第四次复跑(§10/§18/§20 三次复跑均确认 5 条意见早闭环)。本次复跑发现 **批 11 (8-12 23:40) R407** 又把 server.py 改到 **862 行**(849 → 862,+13 行),而 §20 (8-13 02:00) 同步时只追了 849,文档里 4 处 849 又漂了。5 条 P0/P1 意见全部仍闭环,**本批只追 P2 行数同步 849 → 862**。
+
+| 优先级 | 问题 | 当前状态 | 证据 |
+|---|---|---|---|
+| P0 | `start.sh` 缺 `-X utf8`(批 1 已改) | ✅ §10 闭环(4 次复跑) | `start.sh:16` `python3 -X utf8 server.py` |
+| P0 | `server.py` 端口冲突 `sleep 10` 隐式 return 0 | ✅ §10 闭环(4 次复跑) → §19 加 R337 shutil + §20 加 R407 7 处 status 后行号变 862 | `server.py:840-846` `except OSError as e: print(...); sys.exit(1)` |
+| P1 | 9 维承诺空头(`_search` 只 7 维 / `facets` 不返 6 维) | ✅ §10 闭环(4 次复跑) | `server.py:152-156 / 282-283 / 324-338` 9 维全 SQL 入参 |
+| P1 | `_semantic_search` 硬塞 `sys.path.insert(0, 父目录)` | ✅ §10 闭环(4 次复跑) | `server.py:421-429` 读 `ANALYSISWEB_EMBEDDING_DIR` env,缺返 501 + 中文提示 |
+| P1 | 启动横幅硬编码 Windows LAN IP | ✅ §10 闭环 → §13 加 `_detect_lan_ip()` 同步并入 ADMIN_IPS | `server.py:811-816` socket 连 `8.8.8.8:80` 探测本机 LAN |
+| P2 | AGENTS.md / README.md / libraryControl.md 行数漂移(server.py 862,index.html 1385) | ✅ **本批同步** | `wc -l server.py index.html` = 862 / 1385;`AGENTS.md:38` 849 → 862;`README.md:74` 849 → 862;`libraryControl.md:42,122` 849 → 862 |
+
+> **结论**:5 条意见全部已闭环 4 次,**本次只追 P2 行数同步**(批 11 c743f51 8-12 23:40 R407 7 处 silent 200+error 改 status,server.py 849→862,+13 行;§20 同步时只追到 849,本次补 13 行)。index.html 1385 已在 §18 闭环,无需再追。
+>
+> 本批 commit 单条,`docs(批 3 四次复核 8-14 02:00 P2 行数同步)`,走 `git_data_push.py` 推 GitHub + `_push_gitee_v100.py` 推 Gitee。
